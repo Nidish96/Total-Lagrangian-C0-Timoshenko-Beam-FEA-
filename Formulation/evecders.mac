@@ -1,0 +1,37 @@
+load("itensor");
+
+decsym(M, 2, 0, [cyc(all)], []);  /* Symmetric Tensor */
+
+/* First Derivatives (Derived On Paper) */
+lam1k:phi([i],[1])*M([i,j],[],k)*phi([j],[1])$
+phi1k:(phi([p],[2])*M([p,j],[],k)*phi([j],[1]))/(l([],[1])-l([],[2]))*phi([i],[2])$
+
+/* Second Derivatives */
+lam1kl: idiff(lam1k,l)$
+phi1kl: idiff(phi1k,l)$
+
+/* Third Derivatives */
+lam1klm: idiff(lam1kl, m)$
+phi1klm: idiff(phi1kl, m)$
+ishow(lam1klm)$
+ishow(phi1klm)$
+
+/* Log Derivative */
+ishow(idiff(log(X([m],[])),k))$
+ishow(ratsimp(idiff(idiff(log(X([m],[])),k),l)))$
+ishow(expand(idiff(idiff(idiff(log(X([m],[])),k),l),n)))$
+
+/* Transform Derivative */
+imetric(g);
+ep: phi([i,m],[])*l([p,q],[])*phi([j,m],[])$
+epk: idiff(ep, k)$
+epkl: idiff(epk, l)$
+ishow((epkl))$
+
+/* Energy Derivatives */
+U:0.5*(E*(e00([i,j],[])**2+e11([i,j],[])**2)+G*e01([i,j],[])**2)$
+Uk: radcan(idiff(U,k))$
+Ukl: radcan(idiff(Uk,l))$
+Uklm: radcan(idiff(Ukl,m))$
+ishow(factor(Ukl))$
+ishow(factor(Uklm))$

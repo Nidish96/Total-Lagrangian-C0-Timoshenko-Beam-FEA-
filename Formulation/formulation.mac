@@ -1,0 +1,6 @@
+kill(all);
+depends([e0,g0,e1,e2],[ux,uy]);
+
+ep:matrix([e0],[g0])+y*matrix([e1],[0])+y**2*matrix([e2],[0]);
+sg:matrix([E,0],[0,G]).ep;
+
