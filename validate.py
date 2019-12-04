@@ -45,11 +45,12 @@ props.yrange = [-R, R]
 ###############################################################################################
 # USER INPUT SECTION                                                                          #
 ###############################################################################################
-cas = 3  # CHOOSE TEST CASE HERE
+cas = 1  # CHOOSE TEST CASE HERE
 # 1: Cantilever Beam with Transverse Load At Tip
 # 2: Cantilever Beam with Moment Load At Tip
 # 3: Cantilever Beam with Axial Load At Tip
-famp = 1e8   # FORCNIG AMPLITUDE: High levels by Case [1: , 2: , 3: 1e8]
+famp = 1e8   # FORCING AMPLITUDE: High levels by Case [1: 1e4, 2: , 3: 1e8]
+famp = 1e4
 smeasures = [-1, 1, 0, 2]   # Choose Strain Measures to compare:
 # -1: integrated Green-Lagrange;
 # 0: log;
@@ -71,6 +72,7 @@ bcs = (0, 1, 2)  # Fixed Dof's: (ux, uy, theta_y) at x = 0
 btrans = ss.csr_matrix(ss.eye(Nd))
 btrans = btrans[:, np.setdiff1d(range(Nd), bcs)]
 
+nr.FLWFRC_N
 # Loading Setup
 fshape = np.zeros(Nd)
 u0 = np.zeros(btrans.shape[1])
@@ -101,7 +103,7 @@ elif cas == 3:  # Axially loaded bar
 u0 = btrans[rdofs, :].T.dot(u_an(Xnds)[0])/famp
 # Solver options
 opt = type('', (), {})()
-opt.ITMAX = 10
+opt.ITMAX = 50
 opt.relethr = 1e-16
 opt.absethr = 1e-16
 opt.absrthr = 1e-10
@@ -120,34 +122,10 @@ def func(u, l, d3=0, smeasure=-1): return nr.STATICRESFN(Xnds, np.hstack((u, l))
 uphs = np.zeros((Nd, len(smeasures)))
 for i in range(len(smeasures)):
     try:
-        # sc = 1.0
-        # steps = 0
-        # while 1:
-        #     us = ns.SPNEWTONSOLVER(lambda u: nr.STATICRESFN(Xnds, np.hstack((u, sc*famp)), fshape,
-        #                                                     btrans, No, props,
-        #                                                     smeasure=smeasures[i])[0:2], u0, opt)
-        #     if us.status != 0:  # Convergence achieved through at least one error threshold
-        #                         # Meaning: 1-rele; 2-abse; 3-rel+abse; 4-absr; 5-rele+absr;
-        #                         # 6-abse+absr; 7-rele+abse+absr
-        #         u0 = us.x
-        #         if sc == 1.0:
-        #             break
-        #         elif sc > 1.0:
-        #             sc = 1.0
-        #         else:
-        #             sc = sc*1.5
-        #     else:
-        #         print('Smeasure %d: Status %d: Scale %e' % (smeasures[i], us.status, sc))
-        #         if steps > 20:   # Current "pseudo continuation" not good enough
-        #             us.x = us.x*0
-        #             u0 = us.x
-        #             break
-        #         steps += 1
-        #         u0 = u0*float(sc == 1)
-        #         sc = sc*0.5
-        pdb.set_trace()
+        # Continuation (to converge to large amplitudes)
         X, lam, _ = ns.CONTINUESOLS(lambda u, l: func(u, l, smeasure=smeasures[i]), u0*0.01,
-                                    0.01, famp, famp/10, opt, adapt=1)
+                                    10.0, famp, famp/5, opt, adapt=1, ALfn=ns.ARCORTHOGFN)
+        # Exact Point solution for comparison
         us = ns.SPNEWTONSOLVER(lambda u: nr.STATICRESFN(Xnds, np.hstack((u, famp)), fshape,
                                                         btrans, No, props,
                                                         smeasure=smeasures[i])[0:2], X[-1], opt)

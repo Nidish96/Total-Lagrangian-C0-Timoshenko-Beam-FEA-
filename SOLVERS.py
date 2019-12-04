@@ -51,10 +51,21 @@ def SPNEWTONSOLVER(func, u0, opt):
         rele.append(e[-1]/e0)
 
         it += 1
-        if rele[-1] <= opt.relethr and e[-1] <= opt.absethr and r[-1] <= opt.absrthr:
-            flag = 1  # Solved before ITMAX
+        status = 0
+        if rele[-1] <= opt.relethr:
+            status += 1
+        if e[-1] <= opt.absethr:
+            status += 2
+        if r[-1] <= opt.absrthr:
+            status += 4
+
+        if status > 1:
+            flag = 1
             break
-    status = 0
+#        if rele[-1] <= opt.relethr and e[-1] <= opt.absethr and r[-1] <= opt.absrthr:
+#            flag = 1  # Solved before ITMAX
+#            break
+#    status = 0
     if flag == 0:  # Status if not all criteria met at last iteration
         if rele[-1] <= opt.relethr:
             status += 1
@@ -117,9 +128,9 @@ def CONTSTEP(func, u0, du0, ds, Lam, opt, ALfn=ARCLENGTHFN):
         opt.c = (1.0-opt.b)/q.dot(dRdu0.dot(q))
         try:
             sc = 1.0/np.sqrt(opt.c*du0[0:-1].dot(dRdu0.dot(du0[0:-1])) + opt.b*du0[-1]**2)
-        except:
+        except Exception as inst:
             pdb.set_trace()
-            print("hey");
+            print("hey")
     else:
         opt.c = 1.0
         sc = 1.0
@@ -164,7 +175,7 @@ def CONTSTEP(func, u0, du0, ds, Lam, opt, ALfn=ARCLENGTHFN):
             status += 2
         if r[-1] <= opt.absrthr:
             status += 4
-        if status >= 3:
+        if status > 1:
             flag = 1  # 2 Criteria met before ITMAX
             break
     sol = type('', (), {'fjac': dRdu, 'fun': R, 'nfev': it+1, 'success': flag, 'status': status, 'x': u, 'lam': lam, 'e': e, 'r': r, 'rele': rele, 'nit': it})()
@@ -190,20 +201,23 @@ def CONTINUESOLS(func, X0, l0, le, ds, opt, ALfn=ARCLENGTHFN, adapt=1):
     while (sgl*lam[-1] < sgl*le and len(lam) < opt.maxsteps and
            lam[-1] >= opt.minl and lam[-1] <= opt.maxl):
         try:
-            sol = CONTSTEP(func, X[-1], np.hstack((z*al, al)), ds, lam[-1], opt, ALfn=ALfn)
-        except:
             # pdb.set_trace()
+            sol = CONTSTEP(func, X[-1], np.hstack((z*al, al)), ds, lam[-1], opt, ALfn=ALfn)
+        except Exception as inst:
             if ds == opt.dsmax:
                 print('Singular Matrix Encountered - Quitting.')
                 break
             else:
                 print('Singular Matrix Encountered - Trying to step with dsmax.')
-                lam.pop()
-                X.pop()
-                mE.pop()
+                if len(lam) > 1:
+                    lam.pop()
+                    X.pop()
+                    mE.pop()
                 try:
-                    sol = CONTSTEP(func, X[-1], np.hstack((z*al, al)), opt.dsmax, lam[-1], opt, ALfn=ALfn)
-                except:
+                    dstry = opt.dsmax
+                    ds /= 2
+                    sol = CONTSTEP(func, X[-1], np.hstack((z*al, al)), dstry, lam[-1], opt, ALfn=ALfn)
+                except Exception as inst:
                     print('Singular Matrix Encountered - Quitting.')
                     break
 
@@ -220,14 +234,14 @@ def CONTINUESOLS(func, X0, l0, le, ds, opt, ALfn=ARCLENGTHFN, adapt=1):
             if adapt > 0:
                 if sol.nit <= 5 and ds < opt.dsmax:
                     ds *= 1.0+adapt
-                if sol.nit > 10 and ds > opt.dsmin:
+                if sol.nit > 20 and ds > opt.dsmin:
                     ds /= 1.0+adapt
         else:
             if ds <= opt.dsmin:
                 print('Failure - Quitting Continuation.')
                 break
             else:
-                ds = opt.dsmin
+                ds /= 1.0+adapt
         print('Step %d. Lam = %e. stat = %d. Its = %d. ds = %.2e. nE = %d. th1 = %.2e' %
               (len(lam)-1, lam[-1], sol.status, sol.nit, ds, np.sum(mE[-1] < 0), sol.x[15]))
     return X, lam, mE

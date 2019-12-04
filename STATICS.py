@@ -486,6 +486,11 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=0):
     e1, de1, d2e1, d3e1 = EP1(xi, X, d, sla)
     e2, de2, d2e2, d3e2 = EP2(xi, X, d, sla)
 
+    d2e0 = d2e0.reshape((Nd, Np_xi, Nd))
+    d2g0 = d2g0.reshape((Nd, Np_xi, Nd))
+    d2e1 = d2e1.reshape((Nd, Np_xi, Nd))
+    d2e2 = d2e2.reshape((Nd, Np_xi, Nd))
+
     # Right Cauchy-Green Deformation Tensor F^T.F ################################################
     FTF = np.zeros((2, 2, Np_xi, Np_y))
     FTF[0, 0, :, :] = 1.0+2*(einsum("i,j->ij", e0, ones_like(y)) +
@@ -503,28 +508,29 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=0):
     dFTF[1, 0, :, :, :] = dFTF[0, 1, :, :, :]
 
     d2FTF = np.zeros((2, 2, Np_xi, Np_y, Nd, Nd))
-    d2FTF[0, 0, :, :, :, :] = 2*(einsum("kil,j->ijkl", d2e0.reshape((Nd, Np_xi, Nd)),
-                                        ones_like(y)) +
-                                 einsum("kil,j->ijkl", d2e1.reshape((Nd, Np_xi, Nd)), y) +
-                                 einsum("kil,j->ijkl", d2e2.reshape((Nd, Np_xi, Nd)), y**2))
-    d2FTF[0, 1, :, :, :, :] = 2*einsum("kil,j->ijkl", d2g0.reshape((Nd, Np_xi, Nd)),
-                                       ones_like(y))
+    d2FTF[0, 0, :, :, :, :] = 2*(einsum("kil,j->ijkl", d2e0, ones_like(y)) +
+                                 einsum("kil,j->ijkl", d2e1, y) +
+                                 einsum("kil,j->ijkl", d2e2, y**2))
+    d2FTF[0, 1, :, :, :, :] = 2*einsum("kil,j->ijkl", d2g0, ones_like(y))
     d2FTF[1, 0, :, :, :, :] = d2FTF[0, 1, :, :, :, :]
 
     if d3 == 1:
         d3FTF = np.zeros((2, 2, Np_xi, Np_y, Nd, Nd, Nd))
-        d3FTF[0, 0, :, :, :, :, :] = 2*(einsum("kilm,j->ijklm", d3e0.reshape((Nd, Np_xi, Nd, Nd)),
-                                               ones_like(y)) +
-                                        einsum("kilm,j->ijklm", d3e1.reshape((Nd, Np_xi, Nd, Nd)),
-                                               y) +
-                                        einsum("kilm,j->ijklm", d3e2.reshape((Nd, Np_xi, Nd, Nd)),
-                                               y**2))
-        d3FTF[0, 1, :, :, :, :, :] = 2*einsum("kilm,j->ijklm", d3g0.reshape((Nd, Np_xi, Nd, Nd)),
-                                              ones_like(y))
+        d3FTF[0, 0, :, :, :, :, :] = 2*(einsum("kilm,j->ijklm", d3e0, ones_like(y)) +
+                                        einsum("kilm,j->ijklm", d3e1, y) +
+                                        einsum("kilm,j->ijklm", d3e2, y**2))
+        d3FTF[0, 1, :, :, :, :, :] = 2*einsum("kilm,j->ijklm", d3g0, ones_like(y))
         d3FTF[1, 0, :, :, :, :, :] = d3FTF[0, 1, :, :, :, :, :]
 
     # Strain Measure Estimation ##################################################################
-    if smeasure == 0:  # Log-strain
+    if smeasure == 1:   # Green-Lagrange Strain Measure - Explicit Formulae Employed
+        EYE = einsum("ij,kl->ijkl", eye(2), ones((Np_xi, Np_y)))
+        strain = (FTF-EYE)/2
+        dstrain = dFTF/2
+        d2strain = d2FTF/2
+        if d3 == 1:
+            d3strain = d3FTF/2
+    else:  # Seth-Hill Generalized Strains (case 0 (log-strain) will be dealt with specially below)
         strain = np.zeros_like(FTF)
         dstrain = np.zeros_like(dFTF)
         d2strain = np.zeros_like(d2FTF)
@@ -550,455 +556,188 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=0):
                     raise inst
                     raise Exception('dnan')
 
-                # strain
-                # strain[:, :, i, j] = 0.5*sn.logm(FTF[:, :, i, j])
-                strain[:, :, i, j] = 0.5*einsum("im,m,jm->ij", phi, np.log(lam), phi)
-
                 if lam[0] != lam[1]:  # Nonrepeated eigenvalues
                     # Eigenvalue 1st Derivatives
                     dlam[0, :] = einsum("i,ijk,j->k", phi[:, 0], dFTF[:, :, i, j, :], phi[:, 0])
                     dlam[1, :] = einsum("i,ijk,j->k", phi[:, 1], dFTF[:, :, i, j, :], phi[:, 1])
                     # Eigenvector 1st Derivatives
-                    dphi[:, 0, :] = 1.0/(lam[0]-lam[1])*einsum("k,i->ik",
-                                                               einsum("i,ijk,j->k", phi[:, 0],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 1]), phi[:, 1])
-                    dphi[:, 1, :] = 1.0/(lam[1]-lam[0])*einsum("k,i->ik",
-                                                               einsum("i,ijk,j->k", phi[:, 1],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 0]), phi[:, 0])
+                    dphi[:, 0, :] = einsum(",p,pjk,j,i->ik", (lam[0]-lam[1])**(-1), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1])
+                    dphi[:, 1, :] = einsum(",p,pjk,j,i->ik", (lam[1]-lam[0])**(-1), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0])
                     # Eigenvalue 2nd Derivatives
-                    d2lam[0, :, :] = (einsum("i,ijkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 0]) +
-                                      2*einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                               phi[:, 0]))
-                    d2lam[1, :, :] = (einsum("i,ijkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 1]) +
-                                      2*einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                               phi[:, 1]))
+                    d2lam[0, :, :] = einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 0]) + \
+                        einsum("i,ijkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 0]) + \
+                        einsum("i,ijk,jl->kl", phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 0, :])
+
+                    d2lam[1, :, :] = einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 1]) + \
+                        einsum("i,ijkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 1]) + \
+                        einsum("i,ijk,jl->kl", phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 1, :])
                     # Eigenvectors 2nd Derivatives
-                    # tmp = (einsum("i,ijkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1]) -
-                    #        einsum("l,i,ik->kl", dlam[0, :]-dlam[1, :], phi[:, 0], dphi[:, 1, :]) -
-                    #        (lam[0]-lam[1])*einsum("il,ik->kl", dphi[:, 1, :], dphi[:, 0, :])) / \
-                    #     (lam[0]-lam[1])
-                    # d2phi[:, 0, :, :] = einsum("kl,i->ikl", tmp, phi[:, 1])
-                    # tmp = (einsum("i,ijkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0]) -
-                    #        einsum("l,i,ik->kl", dlam[1, :]-dlam[0, :], phi[:, 1], dphi[:, 0, :]) -
-                    #        (lam[1]-lam[0])*einsum("il,ik->kl", dphi[:, 0, :], dphi[:, 1, :])) / \
-                    #     (lam[1]-lam[0])
-                    # d2phi[:, 1, :, :] = einsum("kl,i->ikl", tmp, phi[:, 0])
+                    d2phi[:, 0, :, :] = einsum(",l,p,pjk,j,i->ikl", -(lam[0]-lam[1])**(-2), (dlam[0, :]-dlam[1, :]), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                        einsum(",pl,pjk,j,i->ikl", 1.0/(lam[0]-lam[1]), dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                        einsum(",p,pjkl,j,i->ikl", 1.0/(lam[0]-lam[1]), phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0], phi[:, 1]) + \
+                        einsum(",p,pjk,jl,i->ikl", 1.0/(lam[0]-lam[1]), phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 0, :], phi[:, 1]) + \
+                        einsum(",p,pjk,j,il->ikl", 1.0/(lam[0]-lam[1]), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], dphi[:, 1, :])
                     
-                    d2phi[:, 0, :, :] = einsum("kl,i->ikl", (2*einsum("pl,pjk,j->kl", dphi[:, 1, :],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 0]) +
-                                                             einsum("p,pjkl,j->kl", phi[:, 1],
-                                                                    d2FTF[:, :, i, j, :, :],
-                                                                    phi[:, 0])) / (lam[0]-lam[1]) -
-                                               einsum("l,p,pjk,j->kl", (dlam[0, :]-dlam[1, :]) /
-                                                      (lam[0]-lam[1])**2, phi[:, 1],
-                                                      dFTF[:, :, i, j, :], phi[:, 0]),
-                                               phi[:, 1]) + \
-                        einsum("p,pjk,j,il->ikl", phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0],
-                               dphi[:, 1, :]) / (lam[0]-lam[1])
-                    d2phi[:, 1, :, :] = einsum("kl,i->ikl", (2*einsum("pl,pjk,j->kl", dphi[:, 0, :],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 1]) +
-                                                             einsum("p,pjkl,j->kl", phi[:, 0],
-                                                                    d2FTF[:, :, i, j, :, :],
-                                                                    phi[:, 1])) / (lam[1]-lam[0]) -
-                                               einsum("l,p,pjk,j->kl", (dlam[1, :]-dlam[0, :]) /
-                                                      (lam[1]-lam[0])**2, phi[:, 0],
-                                                      dFTF[:, :, i, j, :], phi[:, 1]),
-                                               phi[:, 0]) + \
-                        einsum("p,pjk,j,il->ikl", phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1],
-                               dphi[:, 0, :]) / (lam[1]-lam[0])
-                    
+                    d2phi[:, 1, :, :] = einsum(",l,p,pjk,j,i->ikl", -(lam[1]-lam[0])**(-2), (dlam[1, :] - dlam[0, :]), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                        einsum(",pl,pjk,j,i->ikl", 1.0/(lam[1]-lam[0]), dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                        einsum(",p,pjkl,j,i->ikl", 1.0/(lam[1]-lam[0]), phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1], phi[:, 0]) + \
+                        einsum(",p,pjk,jl,i->ikl", 1.0/(lam[1]-lam[0]), phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 1, :], phi[:, 0]) + \
+                        einsum(",p,pjk,j,il->ikl", 1.0/(lam[1]-lam[0]), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], dphi[:, 0, :])
+
                     if d3 == 1:  # 3rd Derivatives
                         # Eigenvalues 3rd Derivatives
-                        d3lam[0, :, :] = einsum("i,ijklm,j->", phi[:, 0],
-                                                d3FTF[:, :, i, j, :, :, :], phi[:, 0]) + \
-                            2*einsum("im,ijkl,j->klm", dphi[:, 0, :], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 0]) + \
-                            2*einsum("il,ijkm,j->klm", dphi[:, 0], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 0]) + \
-                            2*einsum("ilm,ijk,j->klm", d2phi[:, 0, :, :], dFTF[:, :, i, j, :],
-                                     phi[:, 0]) + \
-                            2*einsum("il,ijk,jm->klm", dphi[:, 0], dFTF[:, :, i, j, :],
-                                     dphi[:, 0, :])
-                        d3lam[1, :, :] = einsum("i,ijklm,j->", phi[:, 1],
-                                                d3FTF[:, :, i, j, :, :, :], phi[:, 1]) + \
-                            2*einsum("im,ijkl,j->klm", dphi[:, 1, :], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 1]) + \
-                            2*einsum("il,ijkm,j->klm", dphi[:, 1], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 1]) + \
-                            2*einsum("ilm,ijk,j->klm", d2phi[:, 1, :, :], dFTF[:, :, i, j, :],
-                                     phi[:, 1]) + \
-                            2*einsum("il,ijk,jm->klm", dphi[:, 1], dFTF[:, :, i, j, :],
-                                     dphi[:, 1, :])
-                        
+                        d3lam[0, :, :, :] = einsum("ilm,ijk,j->klm", d2phi[:, 0, :, :], dFTF[:, :, i, j, :], phi[:, 0]) + \
+                            einsum("il,ijkm,j->klm", dphi[:, 0, :], d2FTF[:, :, i, j, :, :], phi[:, 0]) + \
+                            einsum("il,ijk,jm->klm", dphi[:, 0, :], dFTF[:, :, i, j, :], dphi[:, 0, :]) + \
+                            einsum("im,ijkl,j->klm", dphi[:, 0, :], d2FTF[:, :, i, j, :, :], phi[:, 0]) + \
+                            einsum("i,ijklm,j->klm", phi[:, 0], d3FTF[:, :, i, j, :, :, :], phi[:, 0]) + \
+                            einsum("i,ijkl,jm->klm", phi[:, 0], d2FTF[:, :, i, j, :, :], dphi[:, 0, :]) + \
+                            einsum("im,ijk,jl->klm", dphi[:, 0, :], dFTF[:, :, i, j, :], dphi[:, 0, :]) + \
+                            einsum("i,ijkm,jl->klm", phi[:, 0], d2FTF[:, :, i, j, :, :], dphi[:, 0, :]) + \
+                            einsum("i,ijk,jlm->klm", phi[:, 0], dFTF[:, :, i, j, :], d2phi[:, 0, :, :])
+                        d3lam[1, :, :, :] = einsum("ilm,ijk,j->klm", d2phi[:, 1, :, :], dFTF[:, :, i, j, :], phi[:, 1]) + \
+                            einsum("il,ijkm,j->klm", dphi[:, 1, :], d2FTF[:, :, i, j, :, :], phi[:, 1]) + \
+                            einsum("il,ijk,jm->klm", dphi[:, 1, :], dFTF[:, :, i, j, :], dphi[:, 1, :]) + \
+                            einsum("im,ijkl,j->klm", dphi[:, 1, :], d2FTF[:, :, i, j, :, :], phi[:, 1]) + \
+                            einsum("i,ijklm,j->klm", phi[:, 1], d3FTF[:, :, i, j, :, :, :], phi[:, 1]) + \
+                            einsum("i,ijkl,jm->klm", phi[:, 1], d2FTF[:, :, i, j, :, :], dphi[:, 1, :]) + \
+                            einsum("im,ijk,jl->klm", dphi[:, 1, :], dFTF[:, :, i, j, :], dphi[:, 1, :]) + \
+                            einsum("i,ijkm,jl->klm", phi[:, 1], d2FTF[:, :, i, j, :, :], dphi[:, 1, :]) + \
+                            einsum("i,ijk,jlm->klm", phi[:, 1], dFTF[:, :, i, j, :], d2phi[:, 1, :, :])
+
                         # Eigenvectors 3rd Derivatives
-                        tmp = (einsum("pl,pjk,j->kl", dphi[:, 1, :], d2FTF[:, :, i, j, :],
-                                      phi[:, 0]) + einsum("p,pjkl,j->kl", phi[:, 1],
-                                                          d2FTF[:, :, i, j, :, :],
-                                                          phi[:, 0])) / (lam[0]-lam[1]) - \
-                            einsum("l,p,pjk,j->kl", (dlam[0, :]-dlam[1, :]) / (lam[0]-lam[1])**2,
-                                   phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0])
-                        tmp1 = einsum("m,kl->klm", -(dlam[0, :]-dlam[1, :]) / (lam[0] - lam[1])**2,
-                                      2*einsum("pl,pjk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                               phi[:, 0]) +
-                                      einsum("p,pjkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 0])) + 1.0/(lam[0]-lam[1]) * \
-                            (2*einsum("plm,pjk,j->klm", d2phi[:, 1, :, :], dFTF[:, :, i, j, :],
-                                      phi[:, 0]) + 2*einsum("pl,pjkm,j->klm", dphi[:, 1, :],
-                                                            d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                             2*einsum("pl,pjk,jm->klm", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                      dphi[:, 0, :]) + einsum("pm,pjkl,j->klm", dphi[:, 1, :],
-                                                              d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                             einsum("p,pjklm,j->klm", phi[:, 1], d3FTF[:, :, i, j, :, :, :],
-                                    phi[:, 0]) + einsum("p,pjkl,jm->klm", phi[:, 1],
-                                                        d2FTF[:, :, i, j, :, :], dphi[:, 0, :])) - \
-                            einsum("lm,p,pjk,j->klm", ((lam[0]-lam[1])**2 * (d2lam[:, 0, :, :] -
-                                                                             d2lam[:, 1, :, :]) -
-                                                       2*(lam[0]-lam[1]) *
-                                                       einsum("l,m->lm", dlam[:, 0, :] -
-                                                              dlam[:, 1, :], dlam[:, 0, :] -
-                                                              dlam[:, 1, :])) /
-                                   (lam[0]-lam[1])**4, phi[:, 1], dFTF[:, :, i, j, :],
-                                   phi[:, 0]) - \
-                            einsum("l,km->klm", (dlam[:, 0, :] - dlam[:, 1, :]) /
-                                   (lam[0]-lam[1])**2, 2*einsum("pm,pjk,j->km", dphi[:, 1, :],
-                                                                dFTF[:, :, i, j, :], phi[:, 0]) +
-                                   einsum("p,pjkm,j->km", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                          phi[:, 0]))
-                        d3phi[:, 0, :, :, :] = einsum("klm,i->iklm", tmp1, phi[:, 1]) + \
-                            einsum("kl,im->iklm", tmp, dphi[:, 1]) + \
-                            einsum("km,il->iklm", tmp, dphi[:, 1]) + \
-                            einsum("k,ilm->iklm", einsum("p,pjk,j->k", phi[:, 1],
-                                                         dFTF[:, :, i, j, :], phi[:, 0]) /
-                                   (lam[0]-lam[1]), d2phi[:, 1, :, :])
-                        
-                        tmp = (einsum("pl,pjk,j->kl", dphi[:, 0, :], d2FTF[:, :, i, j, :],
-                                      phi[:, 1]) + einsum("p,pjkl,j->kl", phi[:, 0],
-                                                          d2FTF[:, :, i, j, :, :], phi[:, 1])) / \
-                            (lam[1]-lam[0]) - einsum("l,p,pjk,j->kl", (dlam[1, :]-dlam[0, :]) /
-                                                     (lam[1]-lam[0])**2,
-                                                     phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1])
-                        tmp1 = einsum("m,kl->klm", -(dlam[1, :]-dlam[0, :]) / (lam[1] - lam[0])**2,
-                                      2*einsum("pl,pjk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                               phi[:, 1]) +
-                                      einsum("p,pjkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 1])) + 1.0/(lam[1]-lam[0]) * \
-                            (2*einsum("plm,pjk,j->klm", d2phi[:, 0, :, :], dFTF[:, :, i, j, :],
-                                      phi[:, 1]) + 2*einsum("pl,pjkm,j->klm", dphi[:, 0, :],
-                                                            d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                             2*einsum("pl,pjk,jm->klm", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                      dphi[:, 1, :]) + einsum("pm,pjkl,j->klm", dphi[:, 0, :],
-                                                              d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                             einsum("p,pjklm,j->klm", phi[:, 0], d3FTF[:, :, i, j, :, :, :],
-                                    phi[:, 1]) + einsum("p,pjkl,jm->klm", phi[:, 0],
-                                                        d2FTF[:, :, i, j, :, :], dphi[:, 1, :])) - \
-                            einsum("lm,p,pjk,j->klm", ((lam[1]-lam[0])**2 * (d2lam[:, 1, :, :] -
-                                                                             d2lam[:, 0, :, :]) -
-                                                       2*(lam[1]-lam[0]) *
-                                                       einsum("l,m->lm", dlam[:, 1, :] -
-                                                              dlam[:, 0, :], dlam[:, 1, :] -
-                                                              dlam[:, 0, :])) / (lam[1]-lam[0])**4,
-                                   phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1]) - \
-                            einsum("l,km->klm", (dlam[:, 1, :] - dlam[:, 0, :]) /
-                                   (lam[1]-lam[0])**2, 2*einsum("pm,pjk,j->km", dphi[:, 0, :],
-                                                                dFTF[:, :, i, j, :], phi[:, 1]) +
-                                   einsum("p,pjkm,j->km", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                          phi[:, 1]))
-                        d3phi[:, 1, :, :, :] = einsum("klm,i->iklm", tmp1, phi[:, 0]) + \
-                            einsum("kl,im->iklm", tmp, dphi[:, 0]) + \
-                            einsum("km,il->iklm", tmp, dphi[:, 0]) + \
-                            einsum("k,ilm->iklm", einsum("p,pjk,j->k", phi[:, 0],
-                                                         dFTF[:, :, i, j, :], phi[:, 1]) /
-                                   (lam[1]-lam[0]), d2phi[:, 0, :, :])
+                        d3phi[:, 0, :, :, :] = einsum("m,l,p,pjk,j,i->iklm", 2*(lam[0]-lam[1])**(-3)*(dlam[0, :]-dlam[1, :]), (dlam[0, :]-dlam[1, :]), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",lm,p,pjk,j,i->iklm", -(lam[0]-lam[1])**(-2), (d2lam[0, :, :]-d2lam[1, :, :]), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",l,pm,pjk,j,i->iklm", -(lam[0]-lam[1])**(-2), (dlam[0, :]-dlam[1, :]), dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",l,p,pjkm,j,i->iklm", -(lam[0]-lam[1])**(-2), (dlam[0, :]-dlam[1, :]), phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",l,p,pjk,jm,i->iklm", -(lam[0]-lam[1])**(-2), (dlam[0, :]-dlam[1, :]), phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",l,p,pjk,j,im->iklm", -(lam[0]-lam[1])**(-2), (dlam[0, :]-dlam[1, :]), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum("m,pl,pjk,j,i->iklm", (dlam[0, :]-dlam[1, :])/(lam[0]-lam[1])**2, dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",plm,pjk,j,i->iklm", (lam[0]-lam[1])**(-1), d2phi[:, 1, :, :], dFTF[:, :, i, j, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",pl,pjkm,j,i->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], d2FTF[:, :, i, j, :, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",pl,pjk,jm,i->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], dFTF[:, :, i, j, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",pl,pjk,j,im->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum("m,p,pjkl,j,i->iklm", (dlam[0, :]-dlam[1, :])/(lam[0]-lam[1])**2, phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",pm,pjkl,j,i->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], d2FTF[:, :, i, j, :, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",p,pjklm,j,i->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], d3FTF[:, :, i, j, :, :, :], phi[:, 0], phi[:, 1]) + \
+                            einsum(",p,pjkl,jm,i->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], d2FTF[:, :, i, j, :, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",p,pjkl,j,im->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum("m,p,pjk,jl,i->iklm", (dlam[0, :]-dlam[1, :])/(lam[0]-lam[1])**2, phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",pm,pjk,jl,i->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], dFTF[:, :, i, j, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",p,pjkm,jl,i->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], d2FTF[:, :, i, j, :, :], dphi[:, 0, :], phi[:, 1]) + \
+                            einsum(",p,pjk,jlm,i->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], dFTF[:, :, i, j, :], d2phi[:, 0, :, :], phi[:, 1]) + \
+                            einsum(",p,pjk,jl,im->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 0, :], dphi[:, 1, :]) + \
+                            einsum("m,p,pjk,j,il->iklm", (dlam[0, :]-dlam[1, :])/(lam[0]-lam[1])**2, phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum(",pm,pjk,j,il->iklm", (lam[0]-lam[1])**(-1), dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum(",p,pjkm,j,il->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0], dphi[:, 1, :]) + \
+                            einsum(",p,pjk,jm,il->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], dFTF[:, :, i, j, :], dphi[:, 0, :], dphi[:, 1, :]) + \
+                            einsum(",p,pjk,j,ilm->iklm", (lam[0]-lam[1])**(-1), phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0], d2phi[:, 1, :, :])
+                        d3phi[:, 1, :, :, :] = einsum("m,l,p,pjk,j,i->iklm", 2*(lam[1]-lam[0])**(-3)*(dlam[1, :]-dlam[0, :]), (dlam[1, :] - dlam[0, :]), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",lm,p,pjk,j,i->iklm", -(lam[1]-lam[0])**(-2), (d2lam[1, :, :] - d2lam[0, :, :]), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",l,pm,pjk,j,i->iklm", -(lam[1]-lam[0])**(-2), (dlam[1, :] - dlam[0, :]), dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",l,p,pjkm,j,i->iklm", -(lam[1]-lam[0])**(-2), (dlam[1, :] - dlam[0, :]), phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",l,p,pjk,jm,i->iklm", -(lam[1]-lam[0])**(-2), (dlam[1, :] - dlam[0, :]), phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",l,p,pjk,j,im->iklm", -(lam[1]-lam[0])**(-2), (dlam[1, :] - dlam[0, :]), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum("m,pl,pjk,j,i->iklm", (dlam[1, :]-dlam[0, :])/(lam[1]-lam[0])**2, dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",plm,pjk,j,i->iklm", (lam[1]-lam[0])**(-1), d2phi[:, 0, :, :], dFTF[:, :, i, j, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",pl,pjkm,j,i->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], d2FTF[:, :, i, j, :, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",pl,pjk,jm,i->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], dFTF[:, :, i, j, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",pl,pjk,j,im->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum("m,p,pjkl,j,i->iklm", (dlam[1, :]-dlam[0, :])/(lam[1]-lam[0])**2, phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",pm,pjkl,j,i->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], d2FTF[:, :, i, j, :, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",p,pjklm,j,i->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], d3FTF[:, :, i, j, :, :, :], phi[:, 1], phi[:, 0]) + \
+                            einsum(",p,pjkl,jm,i->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], d2FTF[:, :, i, j, :, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",p,pjkl,j,im->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum("m,p,pjk,jl,i->iklm", (dlam[1, :]-dlam[0, :])/(lam[1]-lam[0])**2, phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",pm,pjk,jl,i->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], dFTF[:, :, i, j, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",p,pjkm,jl,i->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], d2FTF[:, :, i, j, :, :], dphi[:, 1, :], phi[:, 0]) + \
+                            einsum(",p,pjk,jlm,i->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], dFTF[:, :, i, j, :], d2phi[:, 1, :, :], phi[:, 0]) + \
+                            einsum(",p,pjk,jl,im->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 1, :], dphi[:, 0, :]) + \
+                            einsum("m,p,pjk,j,il->iklm", (dlam[1, :]-dlam[0, :])/(lam[1]-lam[0])**2, phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum(",pm,pjk,j,il->iklm", (lam[1]-lam[0])**(-1), dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum(",p,pjkm,j,il->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1], dphi[:, 0, :]) + \
+                            einsum(",p,pjk,jm,il->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], dFTF[:, :, i, j, :], dphi[:, 1, :], dphi[:, 0, :]) + \
+                            einsum(",p,pjk,j,ilm->iklm", (lam[1]-lam[0])**(-1), phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1], d2phi[:, 0, :, :])
                     # Strain derivatives
-                    tmp0 = np.log(lam)
-                    tmp1 = einsum("mk,m->mk", dlam, 1.0/lam)
-                    dstrain[:, :, i, j, :] = einsum("imk,m,jm->ijk", dphi, np.log(lam), phi) + \
-                        0.5*einsum("im,mk,jm->ijk", phi, tmp1, phi)
-                    tmp2 = einsum("m,mkl->mkl", 1./lam**2, einsum("m,mkl->mkl", lam, d2lam) -
-                                  einsum("mk,ml->mkl", dlam, dlam))
-                    d2strain[:, :, i, j, :, :] = 0.5*einsum("im,mkl,jm->ijkl", phi, tmp2, phi) + \
-                        einsum("iml,mk,jm->ijkl", dphi, tmp1, phi) + \
-                        einsum("imk,ml,jm->ijkl", dphi, tmp1, phi) + \
-                        einsum("imkl,m,jm->ijkl", d2phi, tmp0, phi) + \
-                        einsum("imk,m,jml->ijkl", dphi, tmp0, dphi)
-                    if d3 == 1:
-                        tmp3 = 2*einsum("mk,ml,mn,m->kln", dlam, dlam, dlam, lam**3) - \
-                            einsum("mkl,mn,m->kln", d2lam, dlam, lam**2) - \
-                            einsum("mk,mln,m->kln", dlam, d2lam, lam**2) - \
-                            einsum("mkn,ml,m->kln", d2lam, dlam, lam**2) + \
-                            einsum("mkln,m->kln", d3lam, lam)
-                        d3strain = einsum("im,m,jmkln->ijkln", phi, tmp0, d3phi) + \
-                            einsum("iml,m,jmkn->ijkln", dphi, tmp0, d2phi) + \
-                            einsum("im,ml,jmkn->ijkln", phi, tmp1, d2phi) + \
-                            einsum("im,mk,jmln->ijkln", phi, tmp1, d2phi) + \
-                            0.5*einsum("im,mkl,jmn->ijkln", phi, tmp2, dphi) + \
-                            einsum("imn,jmkl->ijkln", einsum("imn,m->imn", dphi, tmp0) +
-                                   einsum("im,mn->imn", phi, tmp1), d2phi) + \
-                            einsum("imln,jmk->ijkln", einsum("imln,m->imln", d2phi, tmp0) +
-                                   einsum("iml,mn->imln", dphi, tmp1), dphi) + \
-                            einsum("imln,jmk->ijkln", einsum("imn,ml->imln", dphi, tmp1) +
-                                   einsum("im,mln->imln", phi, tmp2), dphi) + \
-                            einsum("imkn,jml->ijkln", einsum("imn,mk", dphi, tmp1) +
-                                   einsum("im,mkn->imkn", phi, tmp2), dphi) + \
-                            0.5*einsum("imkln,jm->ijkln", einsum("imn,mkl->imkln", dphi, tmp2) +
-                                       einsum("im,mkln->imkln", phi, tmp3), phi)
-                        return strain, dstrain, d2strain, d3strain
-                else:  # Repeated eigenvalues - use Green-Lagrange gradients
-                    dstrain[:, :, i, j, :] = dFTF[:, :, i, j, :]/2
-                    d2strain[:, :, i, j, :, :] = d2FTF[:, :, i, j, :, :]/2
-                    if d3 == 1:
-                        d3strain[:, :, i, j, :, :, :] = d3FTF[:, :, i, j, :, :, :]/2
-                        return strain, dstrain, d2strain, d3strain
-    elif smeasure == 1:   # Green-Lagrange Strain Measure
-        EYE = einsum("ij,kl->ijkl", eye(2), ones((Np_xi, Np_y)))
-        strain = (FTF-EYE)/2
-        dstrain = dFTF/2
-        d2strain = d2FTF/2
-        if d3 == 1:
-            d3strain = d3FTF/2
-            return strain, dstrain, d2strain, d3strain
-    elif smeasure:  # Generic Seth-Hill Model (smeasure taken as exponent)
-        strain = np.zeros_like(FTF)
-        dstrain = np.zeros_like(dFTF)
-        d2strain = np.zeros_like(d2FTF)
+                    if smeasure == 0:  # Log-Strain
+                        tmp0 = np.log(lam)/2
+                        tmp1 = einsum("m,mk->mk", 1.0/lam, dlam)/2
+                        tmp2 = (einsum("m,mkl->mkl", 1.0/lam, d2lam) -
+                                einsum("m,mk,ml->mkl", 1.0/lam**2, dlam, dlam))/2
+                        if d3 == 1:
+                            tmp3 = (einsum("m,n,mkl->mkln", 1.0/lam**2, dlam, d2lam) +
+                                    einsum("m,mkln->mkln", 1.0/lam, d3lam) -
+                                    einsum("m,n,mk,ml->mkln", -2*lam**(-2), dlam, dlam, dlam) +
+                                    einsum("m,mkn,ml->mkln", 1.0/lam**2, d2lam, dlam) +
+                                    einsum("m,mk,mln->mkln", 1.0/lam**2, dlam, d2lam))/2
+                    elif smeasure == 1:  # Can't happen but left here for debugging purposes
+                        tmp0 = (lam-1)/2
+                        tmp1 = dlam/2
+                        tmp2 = d2lam/2
+                        if d3 == 1:
+                            tmp3 = d3lam/2
+                    else:  # Generalized Seth-Hill
+                        tmp0 = (lam**(smeasure)-1.0)/(2*smeasure)
+                        tmp1 = einsum("m,mk->mk", lam**(smeasure-1), dlam)/2
+                        tmp2 = (einsum("m,ml,mk->mkl", (smeasure-1)*lam**(smeasure-2), dlam, dlam) +
+                                einsum("m,mkl->mkl", lam**(smeasure-1), d2lam))/2
+                        if d3 == 1:
+                            tmp3 = (einsum("m,mn,ml,mk->mkln", (smeasure-1)*(smeasure-2)*lam**(smeasure-3), dlam, dlam, dlam) +
+                                    einsum("m,ln,mk->mkln", (smeasure-1)*lam**(smeasure-2), d2lam, dlam) +
+                                    einsum("m,ml,mkn->mkln", (smeasure-1)*lam**(smeasure-2), dlam, d2lam) +
+                                    einsum("m,mn,mkl->mkln", (smeasure-1)*lam**(smeasure-2), dlam, d2lam) +
+                                    einsum("m,mkln->mkln", lam**(smeasure-1), d3lam))/2
 
-        # Variables for Eigendecomposition and derivatives
-        lam = np.zeros(2)  # Eigenvalues
-        phi = np.zeros((2, 2))  # Eigenvectors
-        dlam = np.zeros((2, Nd))
-        dphi = np.zeros((2, 2, Nd))
-        d2lam = np.zeros((2, Nd, Nd))
-        d2phi = np.zeros((2, 2, Nd, Nd))
-        for i in range(Np_xi):
-            for j in range(Np_y):
-                # Eigendecomposition of FTF
-                try:
-                    lam, phi = sn.eigh(FTF[:, :, i, j])
-                except Exception as inst:
-                    pdb.set_trace()
-                    raise inst
-                    raise Exception('dnan')
-
-                # strain
-                strain[:, :, i, j] = (einsum("im,m,jm->ij", phi, lam**smeasure, phi) -
-                                      np.eye(2))/(2*smeasure)
-
-                if lam[0] != lam[1]:  # Nonrepeated eigenvalues
-                    # Eigenvalue 1st Derivatives
-                    dlam[0, :] = einsum("i,ijk,j->k", phi[:, 0], dFTF[:, :, i, j, :], phi[:, 0])
-                    dlam[1, :] = einsum("i,ijk,j->k", phi[:, 1], dFTF[:, :, i, j, :], phi[:, 1])
-                    # Eigenvector 1st Derivatives
-                    dphi[:, 0, :] = 1.0/(lam[0]-lam[1])*einsum("k,i->ik",
-                                                               einsum("i,ijk,j->k", phi[:, 0],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 1]), phi[:, 1])
-                    dphi[:, 1, :] = 1.0/(lam[1]-lam[0])*einsum("k,i->ik",
-                                                               einsum("i,ijk,j->k", phi[:, 1],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 0]), phi[:, 0])
-                    # Eigenvalue 2nd Derivatives
-                    d2lam[0, :, :] = (einsum("i,ijkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 0]) +
-                                      2*einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                               phi[:, 0]))
-                    d2lam[1, :, :] = (einsum("i,ijkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 1]) +
-                                      2*einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                               phi[:, 1]))
-                    # Eigenvectors 2nd Derivatives
-                    # tmp = (einsum("i,ijkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1]) -
-                    #        einsum("l,i,ik->kl", dlam[0, :]-dlam[1, :], phi[:, 0], dphi[:, 1, :]) -
-                    #        (lam[0]-lam[1])*einsum("il,ik->kl", dphi[:, 1, :], dphi[:, 0, :])) / \
-                    #     (lam[0]-lam[1])
-                    # d2phi[:, 0, :, :] = einsum("kl,i->ikl", tmp, phi[:, 1])
-                    # tmp = (einsum("i,ijkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :], phi[:, 1]) +
-                    #        einsum("il,ijk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :], phi[:, 0]) -
-                    #        einsum("l,i,ik->kl", dlam[1, :]-dlam[0, :], phi[:, 1], dphi[:, 0, :]) -
-                    #        (lam[1]-lam[0])*einsum("il,ik->kl", dphi[:, 0, :], dphi[:, 1, :])) / \
-                    #     (lam[1]-lam[0])
-                    # d2phi[:, 1, :, :] = einsum("kl,i->ikl", tmp, phi[:, 0])
-                    
-                    d2phi[:, 0, :, :] = einsum("kl,i->ikl", (2*einsum("pl,pjk,j->kl", dphi[:, 1, :],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 0]) +
-                                                             einsum("p,pjkl,j->kl", phi[:, 1],
-                                                                    d2FTF[:, :, i, j, :, :],
-                                                                    phi[:, 0])) / (lam[0]-lam[1]) -
-                                               einsum("l,p,pjk,j->kl", (dlam[0, :]-dlam[1, :]) /
-                                                      (lam[0]-lam[1])**2, phi[:, 1],
-                                                      dFTF[:, :, i, j, :], phi[:, 0]),
-                                               phi[:, 1]) + \
-                        einsum("p,pjk,j,il->ikl", phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0],
-                               dphi[:, 1, :]) / (lam[0]-lam[1])
-                    d2phi[:, 1, :, :] = einsum("kl,i->ikl", (2*einsum("pl,pjk,j->kl", dphi[:, 0, :],
-                                                                      dFTF[:, :, i, j, :],
-                                                                      phi[:, 1]) +
-                                                             einsum("p,pjkl,j->kl", phi[:, 0],
-                                                                    d2FTF[:, :, i, j, :, :],
-                                                                    phi[:, 1])) / (lam[1]-lam[0]) -
-                                               einsum("l,p,pjk,j->kl", (dlam[1, :]-dlam[0, :]) /
-                                                      (lam[1]-lam[0])**2, phi[:, 0],
-                                                      dFTF[:, :, i, j, :], phi[:, 1]),
-                                               phi[:, 0]) + \
-                        einsum("p,pjk,j,il->ikl", phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1],
-                               dphi[:, 0, :]) / (lam[1]-lam[0])
-                    
-                    if d3 == 1:  # 3rd Derivatives
-                        # Eigenvalues 3rd Derivatives
-                        d3lam[0, :, :] = einsum("i,ijklm,j->", phi[:, 0],
-                                                d3FTF[:, :, i, j, :, :, :], phi[:, 0]) + \
-                            2*einsum("im,ijkl,j->klm", dphi[:, 0, :], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 0]) + \
-                            2*einsum("il,ijkm,j->klm", dphi[:, 0], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 0]) + \
-                            2*einsum("ilm,ijk,j->klm", d2phi[:, 0, :, :], dFTF[:, :, i, j, :],
-                                     phi[:, 0]) + \
-                            2*einsum("il,ijk,jm->klm", dphi[:, 0], dFTF[:, :, i, j, :],
-                                     dphi[:, 0, :])
-                        d3lam[1, :, :] = einsum("i,ijklm,j->", phi[:, 1],
-                                                d3FTF[:, :, i, j, :, :, :], phi[:, 1]) + \
-                            2*einsum("im,ijkl,j->klm", dphi[:, 1, :], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 1]) + \
-                            2*einsum("il,ijkm,j->klm", dphi[:, 1], d2FTF[:, :, i, j, :, :],
-                                     phi[:, 1]) + \
-                            2*einsum("ilm,ijk,j->klm", d2phi[:, 1, :, :], dFTF[:, :, i, j, :],
-                                     phi[:, 1]) + \
-                            2*einsum("il,ijk,jm->klm", dphi[:, 1], dFTF[:, :, i, j, :],
-                                     dphi[:, 1, :])
-                        
-                        # Eigenvectors 3rd Derivatives
-                        tmp = (einsum("pl,pjk,j->kl", dphi[:, 1, :], d2FTF[:, :, i, j, :],
-                                      phi[:, 0]) + einsum("p,pjkl,j->kl", phi[:, 1],
-                                                          d2FTF[:, :, i, j, :, :],
-                                                          phi[:, 0])) / (lam[0]-lam[1]) - \
-                            einsum("l,p,pjk,j->kl", (dlam[0, :]-dlam[1, :]) / (lam[0]-lam[1])**2,
-                                   phi[:, 1], dFTF[:, :, i, j, :], phi[:, 0])
-                        tmp1 = einsum("m,kl->klm", -(dlam[0, :]-dlam[1, :]) / (lam[0] - lam[1])**2,
-                                      2*einsum("pl,pjk,j->kl", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                               phi[:, 0]) +
-                                      einsum("p,pjkl,j->kl", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 0])) + 1.0/(lam[0]-lam[1]) * \
-                            (2*einsum("plm,pjk,j->klm", d2phi[:, 1, :, :], dFTF[:, :, i, j, :],
-                                      phi[:, 0]) + 2*einsum("pl,pjkm,j->klm", dphi[:, 1, :],
-                                                            d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                             2*einsum("pl,pjk,jm->klm", dphi[:, 1, :], dFTF[:, :, i, j, :],
-                                      dphi[:, 0, :]) + einsum("pm,pjkl,j->klm", dphi[:, 1, :],
-                                                              d2FTF[:, :, i, j, :, :], phi[:, 0]) +
-                             einsum("p,pjklm,j->klm", phi[:, 1], d3FTF[:, :, i, j, :, :, :],
-                                    phi[:, 0]) + einsum("p,pjkl,jm->klm", phi[:, 1],
-                                                        d2FTF[:, :, i, j, :, :], dphi[:, 0, :])) - \
-                            einsum("lm,p,pjk,j->klm", ((lam[0]-lam[1])**2 * (d2lam[:, 0, :, :] -
-                                                                             d2lam[:, 1, :, :]) -
-                                                       2*(lam[0]-lam[1]) *
-                                                       einsum("l,m->lm", dlam[:, 0, :] -
-                                                              dlam[:, 1, :], dlam[:, 0, :] -
-                                                              dlam[:, 1, :])) /
-                                   (lam[0]-lam[1])**4, phi[:, 1], dFTF[:, :, i, j, :],
-                                   phi[:, 0]) - \
-                            einsum("l,km->klm", (dlam[:, 0, :] - dlam[:, 1, :]) /
-                                   (lam[0]-lam[1])**2, 2*einsum("pm,pjk,j->km", dphi[:, 1, :],
-                                                                dFTF[:, :, i, j, :], phi[:, 0]) +
-                                   einsum("p,pjkm,j->km", phi[:, 1], d2FTF[:, :, i, j, :, :],
-                                          phi[:, 0]))
-                        d3phi[:, 0, :, :, :] = einsum("klm,i->iklm", tmp1, phi[:, 1]) + \
-                            einsum("kl,im->iklm", tmp, dphi[:, 1]) + \
-                            einsum("km,il->iklm", tmp, dphi[:, 1]) + \
-                            einsum("k,ilm->iklm", einsum("p,pjk,j->k", phi[:, 1],
-                                                         dFTF[:, :, i, j, :], phi[:, 0]) /
-                                   (lam[0]-lam[1]), d2phi[:, 1, :, :])
-                        
-                        tmp = (einsum("pl,pjk,j->kl", dphi[:, 0, :], d2FTF[:, :, i, j, :],
-                                      phi[:, 1]) + einsum("p,pjkl,j->kl", phi[:, 0],
-                                                          d2FTF[:, :, i, j, :, :], phi[:, 1])) / \
-                            (lam[1]-lam[0]) - einsum("l,p,pjk,j->kl", (dlam[1, :]-dlam[0, :]) /
-                                                     (lam[1]-lam[0])**2,
-                                                     phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1])
-                        tmp1 = einsum("m,kl->klm", -(dlam[1, :]-dlam[0, :]) / (lam[1] - lam[0])**2,
-                                      2*einsum("pl,pjk,j->kl", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                               phi[:, 1]) +
-                                      einsum("p,pjkl,j->kl", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                             phi[:, 1])) + 1.0/(lam[1]-lam[0]) * \
-                            (2*einsum("plm,pjk,j->klm", d2phi[:, 0, :, :], dFTF[:, :, i, j, :],
-                                      phi[:, 1]) + 2*einsum("pl,pjkm,j->klm", dphi[:, 0, :],
-                                                            d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                             2*einsum("pl,pjk,jm->klm", dphi[:, 0, :], dFTF[:, :, i, j, :],
-                                      dphi[:, 1, :]) + einsum("pm,pjkl,j->klm", dphi[:, 0, :],
-                                                              d2FTF[:, :, i, j, :, :], phi[:, 1]) +
-                             einsum("p,pjklm,j->klm", phi[:, 0], d3FTF[:, :, i, j, :, :, :],
-                                    phi[:, 1]) + einsum("p,pjkl,jm->klm", phi[:, 0],
-                                                        d2FTF[:, :, i, j, :, :], dphi[:, 1, :])) - \
-                            einsum("lm,p,pjk,j->klm", ((lam[1]-lam[0])**2 * (d2lam[:, 1, :, :] -
-                                                                             d2lam[:, 0, :, :]) -
-                                                       2*(lam[1]-lam[0]) *
-                                                       einsum("l,m->lm", dlam[:, 1, :] -
-                                                              dlam[:, 0, :], dlam[:, 1, :] -
-                                                              dlam[:, 0, :])) / (lam[1]-lam[0])**4,
-                                   phi[:, 0], dFTF[:, :, i, j, :], phi[:, 1]) - \
-                            einsum("l,km->klm", (dlam[:, 1, :] - dlam[:, 0, :]) /
-                                   (lam[1]-lam[0])**2, 2*einsum("pm,pjk,j->km", dphi[:, 0, :],
-                                                                dFTF[:, :, i, j, :], phi[:, 1]) +
-                                   einsum("p,pjkm,j->km", phi[:, 0], d2FTF[:, :, i, j, :, :],
-                                          phi[:, 1]))
-                        d3phi[:, 1, :, :, :] = einsum("klm,i->iklm", tmp1, phi[:, 0]) + \
-                            einsum("kl,im->iklm", tmp, dphi[:, 0]) + \
-                            einsum("km,il->iklm", tmp, dphi[:, 0]) + \
-                            einsum("k,ilm->iklm", einsum("p,pjk,j->k", phi[:, 0],
-                                                         dFTF[:, :, i, j, :], phi[:, 1]) /
-                                   (lam[1]-lam[0]), d2phi[:, 0, :, :])
-                # Strain derivatives
-                    tmp0 = np.log(lam)
-                    tmp1 = einsum("mk,m->mk", dlam, lam**(smeasure-1))
+                    # Strain and Gradients
+                    strain[:, :, i, j] = einsum("im,m,jm->ij", phi, tmp0, phi)
                     dstrain[:, :, i, j, :] = einsum("imk,m,jm->ijk", dphi, tmp0, phi) + \
-                        0.5*einsum("im,mk,jm->ijk", phi, tmp1, phi)
-                    tmp2 = einsum("m,mk,ml->mkl", (smeasure-1)*lam**(smeasure-2),
-                                  dlam, dlam) + \
-                        einsum("m,mkl->mkl", lam**(smeasure-1), d2lam)
-                    d2strain[:, :, i, j, :, :] = 0.5*einsum("im,mkl,jm->ijkl", phi, tmp2, phi) + \
-                        einsum("iml,mk,jm->ijkl", dphi, tmp1, phi) + \
+                        einsum("im,mk,jm->ijk", phi, tmp1, phi) + \
+                        einsum("im,m,jmk->ijk", phi, tmp0, dphi)
+                    d2strain[:, :, i, j, :, :] = einsum("imkl,m,jm->ijkl", d2phi, tmp0, phi) + \
                         einsum("imk,ml,jm->ijkl", dphi, tmp1, phi) + \
-                        einsum("imkl,m,jm->ijkl", d2phi, tmp0, phi) + \
-                        einsum("imk,m,jml->ijkl", dphi, tmp0, dphi)
+                        einsum("imk,m,jml->ijkl", dphi, tmp0, dphi) + \
+                        einsum("iml,mk,jm->ijkl", dphi, tmp1, phi) + \
+                        einsum("im,mkl,jm->ijkl", phi, tmp2, phi) + \
+                        einsum("im,mk,jml->ijkl", phi, tmp1, dphi) + \
+                        einsum("iml,m,jmk->ijkl", dphi, tmp0, dphi) + \
+                        einsum("im,ml,jmk->ijkl", phi, tmp1, dphi) + \
+                        einsum("im,m,jmkl->ijkl", phi, tmp0, d2phi)
+
                     if d3 == 1:
-                        tmp3 = 2*einsum("mk,ml,mn,m->kln", dlam, dlam, dlam, lam**3) - \
-                            einsum("mkl,mn,m->kln", d2lam, dlam, lam**2) - \
-                            einsum("mk,mln,m->kln", dlam, d2lam, lam**2) - \
-                            einsum("mkn,ml,m->kln", d2lam, dlam, lam**2) + \
-                            einsum("mkln,m->kln", d3lam, lam)
-                        d3strain = einsum("im,m,jmkln->ijkln", phi, tmp0, d3phi) + \
-                            einsum("iml,m,jmkn->ijkln", dphi, tmp0, d2phi) + \
-                            einsum("im,ml,jmkn->ijkln", phi, tmp1, d2phi) + \
+                        d3strain[:, :, i, j, :, :, :] = einsum("imkln,m,jm->ijkln", d3phi, tmp0, phi) + \
+                            einsum("imkl,mn,jm->ijkln", d2phi, tmp1, phi) + \
+                            einsum("imkl,m,jmn->ijkln", d2phi, tmp0, dphi) + \
+                            einsum("imkn,ml,jm->ijkln", d2phi, tmp1, phi) + \
+                            einsum("imk,mln,jm->ijkln", dphi, tmp2, phi) + \
+                            einsum("imk,ml,jmn->ijkln", dphi, tmp1, dphi) + \
+                            einsum("imkn,m,jml->ijkln", d2phi, tmp0, dphi) + \
+                            einsum("imk,mn,jml->ijkln", dphi, tmp1, dphi) + \
+                            einsum("imk,m,jmln->ijkln", dphi, tmp0, d2phi) + \
+                            einsum("imln,mk,jm->ijkln", d2phi, tmp1, phi) + \
+                            einsum("iml,mkn,jm->ijkln", dphi, tmp2, phi) + \
+                            einsum("iml,mk,jmn->ijkln", dphi, tmp1, dphi) + \
+                            einsum("imn,mkl,jm->ijkln", dphi, tmp2, phi) + \
+                            einsum("im,mkln,jm->ijkln", phi, tmp3, phi) + \
+                            einsum("im,mkl,jmn->ijkln", phi, tmp2, dphi) + \
+                            einsum("imn,mk,jml->ijkln", dphi, tmp1, dphi) + \
+                            einsum("im,mkn,jml->ijkln", phi, tmp2, dphi) + \
                             einsum("im,mk,jmln->ijkln", phi, tmp1, d2phi) + \
-                            0.5*einsum("im,mkl,jmn->ijkln", phi, tmp2, dphi) + \
-                            einsum("imn,jmkl->ijkln", einsum("imn,m->imn", dphi, tmp0) +
-                                   einsum("im,mn->imn", phi, tmp1), d2phi) + \
-                            einsum("imln,jmk->ijkln", einsum("imln,m->imln", d2phi, tmp0) +
-                                   einsum("iml,mn->imln", dphi, tmp1), dphi) + \
-                            einsum("imln,jmk->ijkln", einsum("imn,ml->imln", dphi, tmp1) +
-                                   einsum("im,mln->imln", phi, tmp2), dphi) + \
-                            einsum("imkn,jml->ijkln", einsum("imn,mk", dphi, tmp1) +
-                                   einsum("im,mkn->imkn", phi, tmp2), dphi) + \
-                            0.5*einsum("imkln,jm->ijkln", einsum("imn,mkl->imkln", dphi, tmp2) +
-                                       einsum("im,mkln->imkln", phi, tmp3), phi)
-                        return strain, dstrain, d2strain, d3strain
-                else:  # Repeated eigenvalues - use Green-Lagrange gradients
+                            einsum("imln,m,jmk->ijkln", d2phi, tmp0, dphi) + \
+                            einsum("iml,mn,jmk->ijkln", dphi, tmp1, dphi) + \
+                            einsum("iml,m,jmkn->ijkln", dphi, tmp0, d2phi) + \
+                            einsum("imn,ml,jmk->ijkln", dphi, tmp1, dphi) + \
+                            einsum("im,mln,jmk->ijkln", phi, tmp2, dphi) + \
+                            einsum("im,ml,jmkn->ijkln", phi, tmp1, d2phi) + \
+                            einsum("imn,m,jmkl->ijkln", dphi, tmp0, d2phi) + \
+                            einsum("im,mn,jmkl->ijkln", phi, tmp1, d2phi) + \
+                            einsum("im,m,jmkln->ijkln", phi, tmp0, d3phi)
+                else:  # Repeated eigenvalues - use Green-Lagrange gradients - Happens only when stretch is unity (no strain) <hopefully :P>
                     dstrain[:, :, i, j, :] = dFTF[:, :, i, j, :]/2
                     d2strain[:, :, i, j, :, :] = d2FTF[:, :, i, j, :, :]/2
                     if d3 == 1:
                         d3strain[:, :, i, j, :, :, :] = d3FTF[:, :, i, j, :, :, :]/2
-                        return strain, dstrain, d2strain, d3strain
+    if d3 == 1:
+        return strain, dstrain, d2strain, d3strain
     return strain, dstrain, d2strain
 
 
