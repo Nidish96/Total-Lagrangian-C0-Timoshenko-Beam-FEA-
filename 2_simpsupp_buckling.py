@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #############################################################################################
-# FILE: simpsupp_buckling.py                                                                #
+# FILE: 2_simpsupp_buckling.py                                                              #
 # Written by Nidish Narayanaa Balaji                                                        #
 # Last Modified by N. N. Balaji on 1 Dec 2019                                               #
 #                                                                                           #
@@ -22,7 +22,9 @@ import DYNAMICS as nd
 reload(ns)
 reload(nr)
 
-# Physical properties
+###############################################################################################
+# PHYSICAL PROPTERIES                                                                         #
+###############################################################################################
 E = 210e9
 nu = 0.33
 G = E/(2.0*(1.0+nu))
@@ -45,7 +47,41 @@ props.G = G
 props.Npy = 8  # Section quadrature
 props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
 props.yrange = [-R, R]
+###############################################################################################
 
+###############################################################################################
+# USER INPUT SECTION                                                                          #
+###############################################################################################
+# CHOOSE STRAIN MEASURE TO DEPLOY
+STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following explicitly)
+    -100: 'Integrated Section Strain',
+    -1: 'Almansi Strain',
+    -0.5: 'Swaiger',
+    0: 'Log Strain',
+    0.5: 'Cauchy Strain',
+    1: 'Green-Lagrange Strain',
+    100: 'Kuhn Strain'}
+smeasure = -1
+
+# Forcing Type
+Follower_Forcing = False
+
+# SOLVER AND CONTINUATION PARAMETERS
+opt = type('', (), {})()
+opt.ITMAX = 20
+opt.relethr = 1e-16
+opt.absethr = 1e-16
+opt.absrthr = 1e-10
+opt.dsmin = 1.0
+opt.dsmax = 4000.0
+opt.b = 0.5
+opt.maxsteps = 10000
+###############################################################################################
+
+###############################################################################################
+# Numerical Solution                                                                          #
+###############################################################################################
+# Finite Element Scheme
 Nn = 11
 Nd = Nn*3
 No = 5
@@ -53,7 +89,8 @@ Xnds = np.linspace(0.0, L, Nn)
 
 # Non-follower force vector
 fshape = np.zeros(Nd, dtype=float)
-fshape[-3] = -1.0
+if not(Follower_Forcing):
+    fshape[-3] = -1.0
 
 # Boundary Conditions (homogeneous)
 bcs = (0, 1, (Nn-1)*3+1)
@@ -64,36 +101,26 @@ u0 = np.zeros(btrans.shape[1])
 
 # Follower force options
 Flwds = nr.FLWLDS()
-Flwds.Nl += 1
-Flwds.nd.append(Nn-1)
-Flwds.F.append(np.array([-1.0, 0.0]))
-
-# Continuation formulation
-opt = type('', (), {})()
-opt.ITMAX = 20
-opt.relethr = 1e-16
-opt.absethr = 1e-16
-opt.absrthr = 1e-5
-opt.dsmin = 1.0
-opt.dsmax = 4000.0
-opt.b = 0.5
-opt.maxsteps = 10000
-
-smeasure = 2
+if Follower_Forcing:
+    Flwds.Nl += 1
+    Flwds.nd.append(Nn-1)
+    Flwds.F.append(np.array([-1.0, 0.0]))
 
 
-# def func(u, l, d3=0): return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape*0, btrans, No, props, d3=d3, NDFls=Flwds)
-def func(u, l, d3=0, smeasure=smeasure): return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape, btrans, No, props, d3=d3, smeasure=smeasure)
+# Function Handle for Continuation - Follower Loading Case
+def func(u, l, d3=0, smeasure=smeasure):
+    return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape, btrans, No, props,
+                          d3=d3, smeasure=smeasure, NDFls=Flwds)
 
 
 ######################################################################################
 # CONTINUATION OF PRIMARY BRANCH
 ######################################################################################
-lstart = 100.0
-lend = 200000.0
+lstart = 1e2
+lend = 2e5
 opt.minl = lstart
 opt.maxl = lend
-
+pdb.set_trace()
 unf = ns.SPNEWTONSOLVER(lambda u: func(u, lstart)[0:2], u0, opt)
 
 ds = 400.0
@@ -114,7 +141,8 @@ c3 = np.where(np.real(np.array(dE)[:, -3]) > 1e-5)[0][0]
 # Bifurcation 1 - Singularity through first Eigenvalue
 ####################################################################################
 du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3, smeasure=smeasure), X, lam, mE, opt, ei=0)
+                                          func(u, lam, d3=d3, smeasure=smeasure),
+                                          X, lam, mE, opt, ei=0)
 du2 = np.sign(du2[-1])*du2
 
 us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
@@ -130,7 +158,8 @@ Xb1b, lamb1b, mEb1b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
 # Bifurcation 2 - Singularity through Second Eigenvalue
 ####################################################################################
 du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3), X, lam, mE, opt, ei=1)
+                                          func(u, lam, d3=d3, smeasure=smeasure),
+                                          X, lam, mE, opt, ei=1)
 du2 = np.sign(du2[-1])*du2
 
 us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
@@ -146,7 +175,8 @@ Xb2b, lamb2b, mEb2b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
 # Bifurcation 3 - Singularity through Third Eigenvalue
 ####################################################################################
 du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3), X, lam, mE, opt, ei=2)
+                                          func(u, lam, d3=d3, smeasure=smeasure),
+                                          X, lam, mE, opt, ei=2)
 du2 = np.sign(du2[-1])*du2
 
 us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
@@ -160,7 +190,12 @@ Xb3b, lamb3b, mEb3b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
                                       0.25, opt, ALfn=ns.ARCORTHOGFN)
 ####################################################################################
 
+####################################################################################
+# CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
+####################################################################################
 Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
+###############################################################################################
+
 
 ####################################################################################
 # PLOTS                                                                            #

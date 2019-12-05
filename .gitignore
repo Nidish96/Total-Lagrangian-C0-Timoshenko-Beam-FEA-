@@ -1,3 +1,9 @@
 *.pyc
 *~
 *flymake*
+*aux
+*bbl
+*log
+bbl
+*synctex*
+*eps-converted-to.pdf

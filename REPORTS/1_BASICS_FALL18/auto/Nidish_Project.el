@@ -1,0 +1,86 @@
+(TeX-add-style-hook
+ "Nidish_Project"
+ (lambda ()
+   (TeX-add-to-alist 'LaTeX-provided-class-options
+                     '(("IEEEtran" "10pt" "final" "journal" "letterpaper" "oneside" "twocolumn")))
+   (TeX-add-to-alist 'LaTeX-provided-package-options
+                     '(("babel" "english")))
+   (TeX-run-style-hooks
+    "latex2e"
+    "IEEEtran"
+    "IEEEtran10"
+    "fix2col"
+    "graphicx"
+    "tikz"
+    "tikzinclude"
+    "subcaption"
+    "multirow"
+    "babel"
+    "amsmath"
+    "amssymb"
+    "bm"
+    "mathrsfs"
+    "bbm"
+    "cleveref"
+    "lipsum")
+   (TeX-add-symbols
+    "Real")
+   (LaTeX-add-labels
+    "sec:intr-motiv"
+    "sec:problem-definition"
+    "eq:DAE"
+    "eq:qreord"
+    "eq:Psi"
+    "eq:map"
+    "eq:dermap"
+    "eq:redmod"
+    "sec:sing-pert-form"
+    "eq:spert0"
+    "eq:spertsys"
+    "eq:spertform"
+    "eq:fasttime"
+    "eq:bdyn"
+    "eq:blsys"
+    "eq:expstabor"
+    "sec:set-point-control"
+    "fig:schem5"
+    "eq:setptctrl"
+    "sec:tracking-control"
+    "eq:trackctrl"
+    "eq:trackclloop"
+    "eq:lyapcand"
+    "eq:lyapdot"
+    "sec:model-description"
+    "tab:5barspec"
+    "sec:results-discussions"
+    "sec:sing-conf"
+    "fig:sing5"
+    "sec:set-point-control-1"
+    "fig:setptobj"
+    "fig:setpt3"
+    "fig:setpt1"
+    "fig:setpt2"
+    "fig:setpoint"
+    "eq:setptgains"
+    "sec:tracking-control-1"
+    "eq:trackdes"
+    "eq:trackgains"
+    "fig:trackobj"
+    "fig:track3"
+    "fig:track1"
+    "fig:track2"
+    "fig:tracking"
+    "sec:conclusions"
+    "sec:equations-motion"
+    "eq:eomform"
+    "eq:inertterms"
+    "eq:csymbterms"
+    "eq:gravterms"
+    "eq:lcconst")
+   (LaTeX-add-bibliographies
+    "IEEEabrv"
+    "Refs")
+   (LaTeX-add-counters
+    "mytempcntr"))
+ :latex)
+

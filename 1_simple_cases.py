@@ -1,12 +1,11 @@
- #!/usr/bin/python
+#!/usr/bin/python
 ###############################################################################################
-# FILE: validate.py                                                                           #
-# Written by Nidish Narayanaa Balaji on 17 Nov 2018                                           #
+# FILE: 1_simple_cases.py                                                                     #
+# Written by Nidish Narayanaa Balaji                                                          #
+# Last Modified on 3 Dec 2019                                                                 #
 #                                                                                             #
-# The current script considers a test cantilever beam with three different loading cases      #
-# (corresponding to a concentrated transverse, axial, & moment applied at the free end).      #
-# The convergence against the linear solution for the bar and Euler-Bernouilli approximations #
-# is demonstrated.                                                                            #
+# The current script considers a test cantilever beam with five different loading cases where #
+# the different strain measures are compared.                                                 #
 ###############################################################################################
 import numpy as np
 from numpy import pi
@@ -49,10 +48,14 @@ props.yrange = [-R, R]
 # USER INPUT SECTION                                                                          #
 ###############################################################################################
 # CHOOSE STRAIN MEASURES TO COMPARE HERE
-# -1: integrated Green-Lagrange;
-# 0: log;
-# 1: Green-Lagrange (numerical);
-# <other decimals>: arbitrary Seth-Hill strain exponents
+STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following explicitly)
+    -100: 'Integrated Section Strain',
+    -1: 'Almansi Strain',
+    -0.5: 'Swaiger',
+    0: 'Log Strain',
+    0.5: 'Cauchy Strain',
+    1: 'Green-Lagrange Strain',
+    100: 'Kuhn Strain'}
 smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
 
 # CHOOSE TEST CASE HERE
@@ -83,14 +86,6 @@ elif cas == 5:
 
 
 # PLOTTING PARAMETERS
-STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following explicitly)
-    -100: 'Integrated Section Strain',
-    -1: 'Almansi Strain',
-    -0.5: 'Swaiger',
-    0: 'Log Strain',
-    0.5: 'Cauchy Strain',
-    1: 'Green-Lagrange Strain',
-    100: 'Kuhn Strain'}
 aflag = 0  # Set to 1 to plot analytic (linear) solutions
 
 # SOLVER AND CONTINUATION PARAMETERS
@@ -190,7 +185,7 @@ elif cas == 5:
 u0 = btrans[rdofs, :].T.dot(u_an(Xnds)[0])/famp
 
 
-# Function Handle for Continuation - Follower Loading Case
+# Function Handle for Continuation
 def func(u, l, d3=0, smeasure=-100): return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape, btrans, No, props, NDFls=Flwds, d3=d3, smeasure=smeasure)
 
 
