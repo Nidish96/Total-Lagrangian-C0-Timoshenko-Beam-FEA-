@@ -62,7 +62,7 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = 0
+smeasure = 0.5
 
 # Forcing Type
 Follower_Forcing = False
@@ -77,6 +77,9 @@ opt.dsmin = 1.0
 opt.dsmax = 4000.0
 opt.b = 0.5
 opt.maxsteps = 10000
+
+# CALCULATE OR LOAD DATA
+CALC = True
 ###############################################################################################
 
 ###############################################################################################
@@ -114,104 +117,144 @@ def func(u, l, d3=0, smeasure=smeasure):
                           d3=d3, smeasure=smeasure, NDFls=Flwds)
 
 
-######################################################################################
-# CONTINUATION OF PRIMARY BRANCH
-######################################################################################
-lstart = 1e2
-lend = 2e5
-opt.minl = lstart
-opt.maxl = lend
-pdb.set_trace()
-unf = ns.SPNEWTONSOLVER(lambda u: func(u, lstart)[0:2], u0, opt)
+if CALC:
+    ######################################################################################
+    # CONTINUATION OF PRIMARY BRANCH
+    ######################################################################################
+    lstart = 1e2
+    lend = 2e5
+    opt.minl = lstart
+    opt.maxl = lend
+    # pdb.set_trace()
+    unf = ns.SPNEWTONSOLVER(lambda u: func(u, lstart)[0:2], u0, opt)
+    
+    ds = 400.0
+    X, lam, mE = ns.CONTINUESOLS(func, unf.x, lstart, lend, ds, opt, adapt=0)
+    
+    ######################################################################################
+    # DYNAMIC STABILITY EXPONENTS
+    ######################################################################################
+    dE = []
+    for k in range(len(X)):
+        Jlin = nd.LINEARIZEDJAC(Xnds, X[k], X[k]*0, No, props, btrans, lambda u: func(u, lam[k]))
+        dE.append(np.sort(np.linalg.eigvals(Jlin.todense())))
+        print('%d/%d DONE.' % (k+1, len(X)))
+        c1 = np.where(np.real(np.array(dE)[:, -1]) > 1e-5)[0][0]
+        c2 = np.where(np.real(np.array(dE)[:, -2]) > 1e-5)[0][0]
+        c3 = np.where(np.real(np.array(dE)[:, -3]) > 1e-5)[0][0]
+        ####################################################################################
+        # Bifurcation 1 - Singularity through first Eigenvalue
+        ####################################################################################
+        du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
+                                                  func(u, lam, d3=d3, smeasure=smeasure),
+                                                  X, lam, mE, opt, ei=0)
+        du2 = np.sign(du2[-1])*du2
 
-ds = 400.0
-X, lam, mE = ns.CONTINUESOLS(func, unf.x, lstart, lend, ds, opt, adapt=0)
+        us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
+        us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        print((us1.status, us2a.status, us2b.status))
+        print((us2a.lam, us2b.lam))
+        Xb1a, lamb1a, mEb1a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        Xb1b, lamb1b, mEb1b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        # pdb.set_trace()
+        ####################################################################################
+        # Bifurcation 2 - Singularity through Second Eigenvalue
+        ####################################################################################
+        du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
+                                                  func(u, lam, d3=d3, smeasure=smeasure),
+                                                  X, lam, mE, opt, ei=1)
+        du2 = np.sign(du2[-1])*du2
+        
+        us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
+        us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        print((us1.status, us2a.status, us2b.status))
+        print((us2a.lam, us2b.lam))
+        Xb2a, lamb2a, mEb2a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        Xb2b, lamb2b, mEb2b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        ####################################################################################
+        # Bifurcation 3 - Singularity through Third Eigenvalue
+        ####################################################################################
+        du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
+                                                  func(u, lam, d3=d3, smeasure=smeasure),
+                                                  X, lam, mE, opt, ei=2)
+        du2 = np.sign(du2[-1])*du2
 
-######################################################################################
-# DYNAMIC STABILITY EXPONENTS
-######################################################################################
-dE = []
-for k in range(len(X)):
-    Jlin = nd.LINEARIZEDJAC(Xnds, X[k], X[k]*0, No, props, btrans, lambda u: func(u, lam[k]))
-    dE.append(np.sort(np.linalg.eigvals(Jlin.todense())))
-    print('%d/%d DONE.' % (k+1, len(X)))
-c1 = np.where(np.real(np.array(dE)[:, -1]) > 1e-5)[0][0]
-c2 = np.where(np.real(np.array(dE)[:, -2]) > 1e-5)[0][0]
-c3 = np.where(np.real(np.array(dE)[:, -3]) > 1e-5)[0][0]
-####################################################################################
-# Bifurcation 1 - Singularity through first Eigenvalue
-####################################################################################
-du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3, smeasure=smeasure),
-                                          X, lam, mE, opt, ei=0)
-du2 = np.sign(du2[-1])*du2
+        us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
+        us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
+        print((us1.status, us2a.status, us2b.status))
+        print((us2a.lam, us2b.lam))
+        Xb3a, lamb3a, mEb3a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        Xb3b, lamb3b, mEb3b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
+                                              0.25, opt, ALfn=ns.ARCORTHOGFN)
+        ####################################################################################
+        
+        ####################################################################################
+        # CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
+        ####################################################################################
+        Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
+        ###########################################################################################
+        
+        ###########################################################################################
+        # SAVE RESULT
+        ###########################################################################################
+        fil = open('./DATS/SSBUCK_%.1f.pkl' % (smeasure), 'w')
+        pickle.dump({'smeasure': smeasure, 'Follower_Forcing': Follower_Forcing,
+                     'Xnds': Xnds, 'lstart': lstart, 'lend': lend,
+                     'X': X, 'lam': lam, 'mE': mE, 'c1': c1, 'c2': c2, 'c3': c3,
+                     'Xb1a': Xb1a, 'lamb1a': lamb1a, 'mEb1a': mEb1a,
+                     'Xb1b': Xb1b, 'lamb1b': lamb1b, 'mEb1b': mEb1b,
+                     'Xb2a': Xb2a, 'lamb2a': lamb2a, 'mEb2a': mEb2a,
+                     'Xb2b': Xb2b, 'lamb2b': lamb2b, 'mEb2b': mEb2b,
+                     'Xb3a': Xb3a, 'lamb3a': lamb3a, 'mEb3a': mEb3a,
+                     'Xb3b': Xb3b, 'lamb3b': lamb3b, 'mEb3b': mEb3b,
+                     'Pcrits': Pcrits},
+                    fil)
+        fil.close()
+        ###########################################################################################
+else:
+    fil = open('./DATS/SSBUCK_%.1f.pkl' % (smeasure), 'r')
+    data = pickle.load(fil)
+    fil.close()
 
-us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
-us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-print((us1.status, us2a.status, us2b.status))
-print((us2a.lam, us2b.lam))
-Xb1a, lamb1a, mEb1a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-Xb1b, lamb1b, mEb1b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-pdb.set_trace()
-####################################################################################
-# Bifurcation 2 - Singularity through Second Eigenvalue
-####################################################################################
-du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3, smeasure=smeasure),
-                                          X, lam, mE, opt, ei=1)
-du2 = np.sign(du2[-1])*du2
+    Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
 
-us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
-us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-print((us1.status, us2a.status, us2b.status))
-print((us2a.lam, us2b.lam))
-Xb2a, lamb2a, mEb2a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-Xb2b, lamb2b, mEb2b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-####################################################################################
-# Bifurcation 3 - Singularity through Third Eigenvalue
-####################################################################################
-du1, al1, du2, al2, ots = ns.SINGTANGENTS(lambda u, lam, d3=0:
-                                          func(u, lam, d3=d3, smeasure=smeasure),
-                                          X, lam, mE, opt, ei=2)
-du2 = np.sign(du2[-1])*du2
-
-us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
-us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-print((us1.status, us2a.status, us2b.status))
-print((us2a.lam, us2b.lam))
-Xb3a, lamb3a, mEb3a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-Xb3b, lamb3b, mEb3b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
-                                      0.25, opt, ALfn=ns.ARCORTHOGFN)
-####################################################################################
-
-####################################################################################
-# CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
-####################################################################################
-Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
-###############################################################################################
-
-###############################################################################################
-# SAVE RESULT
-###############################################################################################
-pickle.dump({'smeasure': smeasure, 'Follower_Forcing': Follower_Forcing,
-             'Xnds': Xnds, 'lstart': lstart, 'lend': lend,
-             'X': X, 'lam': lam, 'mE': mE, 'c1': c1, 'c2': c2, 'c3': c3,
-             'Xb1a': Xb1a, 'lamb1a': lamb1a, 'mEb1a': mEb1a,
-             'Xb1b': Xb1b, 'lamb1b': lamb1b, 'mEb1b': mEb1b,
-             'Xb2a': Xb2a, 'lamb2a': lamb2a, 'mEb2a': mEb2a,
-             'Xb2b': Xb2b, 'lamb2b': lamb2b, 'mEb2b': mEb2b,
-             'Xb3a': Xb3a, 'lamb3a': lamb3a, 'mEb3a': mEb3a,
-             'Xb3b': Xb3b, 'lamb3b': lamb3b, 'mEb3b': mEb3b},
-            open('./DATS/SSBUCK_%d.pkl' % (smeasure), 'w'))
-###############################################################################################
+    smeasure = data['smeasure']
+    Follower_Forcing = data['Follower_Forcing']
+    Xnds = data['Xnds']
+    lstart = data['lstart']
+    lend = data['lend']
+    X = data['X']
+    lam = data['lam']
+    mE = data['mE']
+    c1 = data['c1']
+    c2 = data['c2']
+    c3 = data['c3']
+    Xb1a = data['Xb1a']
+    lamb1a = data['lamb1a']
+    mEb1a = data['mEb1a']
+    Xb1b = data['Xb1b']
+    lamb1b = data['lamb1b']
+    mEb1b = data['mEb1b']
+    Xb2a = data['Xb2a']
+    lamb2a = data['lamb2a']
+    mEb2a = data['mEb2a']
+    Xb2b = data['Xb2b']
+    lamb2b = data['lamb2b']
+    mEb2b = data['mEb2b']
+    Xb3a = data['Xb3a']
+    lamb3a = data['lamb3a']
+    mEb3a = data['mEb3a']
+    Xb3b = data['Xb3b']
+    lamb3b = data['lamb3b']
+    mEb3b = data['mEb3b']
 
 ####################################################################################
 # PLOTS                                                                            #
@@ -299,3 +342,6 @@ axes[1].grid()
 axes[1].set(ylabel='Y Coordinate (m)', title='Branch 3b')
 # fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100
 # fig.savefig('./FIGS/FOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100)
+
+print('CriticaLl Loads:')
+print(np.array([lamb1a[0], lamb2a[0], lamb3a[0]]))

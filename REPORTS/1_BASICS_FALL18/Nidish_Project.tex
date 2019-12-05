@@ -1,741 +1,1609 @@
-\documentclass[10pt,final,journal,letterpaper,oneside,twocolumn]{IEEEtran}
+\documentclass[10pt]{article}
 
-\usepackage{fix2col}
+\usepackage[top=1in,left=.75in,right=.75in,bottom=0.75in]{geometry}
+\usepackage[USenglish]{babel}
+\usepackage{times}
+
 \usepackage{graphicx}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta,
-  shapes.geometric,
-  shapes.misc,shapes.arrows,
-  snakes,patterns}
-\usepackage{tikzinclude}
 \usepackage{subcaption}
-\usepackage{multirow}
+\usepackage{tikz}
 
-\usepackage[english]{babel}
-
+\usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{cancel}
 \usepackage{bm}
-\usepackage{mathrsfs}
-\usepackage{bbm}
+
 \usepackage{cleveref}
 
-\usepackage{lipsum}
+\title{\vspace{-3cm}Study of large-deflection Beams using geometrically nonlinear
+  $C^0$ Finite Elements }
+\author{Fall 2018 \textbf{Course Project for}\\ \textbf{\LARGE MECH 520 Nonlinear Finite
+    Element Methods}\\Submitted by\\Nidish Narayanaa Balaji\\S01276643
+  (nb25)\\Department of Mechanical Engineering\\Rice University,
+  Houston, TX 77005}
 
-\newcommand{\Real}{{\rm I\!R}}
-
-\newcounter{mytempcntr}
-
-\title{Dynamics \& Control of Closed Kinematic Chains}
-\author{Nidish Narayanaa Balaji\\S01276643\thanks{Course Project,
-    MECH520, Dec 2018}}
-\markboth{MECH 508, Aug-Dec 2018}{Nidish: Dynamics and Control of CKC}
 \begin{document}
 \maketitle{}
 
-\begin{abstract}
-  The dynamics and control of closed kinematic chains is considered in
-  the current study. The systems are posed as differential algebraic
-  systems and modeled using singular perturbations. Standard results
-  are invoked in order to prove (a) that the singularly perturbed
-  systems represent the original system (within a bounded error), and
-  (b) the system may be controlled using the proposed control
-  laws. Results are presented for both regulation as well as tracking
-  control.
-\end{abstract}
-\begin{IEEEkeywords}
-  Closed Kinematic Chains, Differential Algebraic Equations, Singular
-  Perturbations, Lyapunov Stability
-\end{IEEEkeywords}
+\section{Introduction}
+\label{sec:introduction}
 
-\section{Introduction and Motivation}
-\label{sec:intr-motiv}
+A large-deformation nonlinear formulation is used to implement a
+nonlinear finite element static \& dynamic code. The only assumption
+that is made is that plane sections remain planar. Although invalid
+for beams of large cross-sections, this is justified for slender beams
+on a plane (no torsional and/or warping effects). Low amplitude
+responses are validated with linear analytical results for simple
+static cases. A low-amplitude modal analysis is conducted to verify
+the dynamic matrices. Although the code is inherently nonlinear,
+buckling under axial tip-load and snap-through response of buckled
+structures under transverse mid-point loads are the major nonlinear
+cases that are considered for response tracing and bifurcation
+analysis.
 
-Kinematic chains or linkages are classical examples of systems with
-holonomic constraints. They consist of component ``links'' in
-$\Real^2$ (planar mechanisms) or $\Real^3$ (spatial
-mechanisms) statically constrained together through joints or
-``kinematic pairs''~\cite{ghosh1988theory}. Mathematically represented
-as additional algebraic equations, the constraints dictate the
-effective number of Degrees-Of-Freedom (DOFs) such a system has. In
-their primitive forms, these are classified as
-Differential-Algebraic-Equations (DAEs), since the systems are modeled
-with differential equations governing their dynamics and algebraic
-equations representing their constraints. 
-
-Among DAEs, there are some cases where the constraints may be solved
-analytically in terms of a minimal number of DOFs (equal to the
-effective DOFs of the system). Here, the DAE may be represented
-exactly by a reduced set of Ordinary Differential Equations
-(ODEs). Open Kinematic Chains (OKCs) are examples where this is
-possible. However, this is not possible in the most general case,
-wherein the system can not be represented exactly in terms of a
-minimal number of DOFs. Here, however, local maps may be constructed
-between DAE in terms of the ``dependent generalized coordinates'' and
-an ODE in terms of a minimal ``independent generalized
-coordinates''~\cite{ghorbel_modeling_2000}. As expected, multiple
-choices are possible for the latter set, leading to representational
-differences. There exist several studies in the literature such as
-\cite{ghorbel_modeling_2000, gunawardana_reduced_nodate}, where the
-definition and existence of such maps are established.
-
-Kinematic chains in which there exist one or more loops, referred to
-as Closed Kinematic Chains (CKCs) henceforth, are a classical example
-of such systems, where the constraints may not be solved analytically
-and the system dynamics may be expressed only in a local sense. The
-current work deals with the set-point and tracking control of such
-systems. A singular perturbation formulation is employed for modeling
-the system as in~\cite{dabney_modeling_2002}, since this allows for
-the application of classical stability theorems. Starting with the
-formulation of the system, the singularly perturbed system is shown to
-be representative of the original DAE, followed by the definitions of
-the control systems and proofs of convergence for the set-point and
-tracking cases.
-
-\section{Problem Definition}
-\label{sec:problem-definition}
-
-Denoting the dependent generalized coordinates as $q'\in \Real^n$, the
-original DAE is represented by the system
-\begin{align}
-  \bm{D}'(q')\ddot{q}' + \bm{C'}(q', \dot{q}')\dot{q}' + h'(q') &=
-                                                         u'(t)\nonumber\\
-  \phi(q') &= 0,
-  \label{eq:DAE}
-\end{align}
-where $\bm{D}'(q'), \bm{C}'(q', \dot{q}') \in \Real^{n\times n}$
-represent the inertia and Christoffel symbols matrices respectively;
-$h'(q') \in \Real^n$ the ``gravity vector''; $u'(t) \in \Real^n$ the
-forcing/control impulse; and $\phi(q') \in \Real^{n-d}$ the set of
-algebraic constraints. Since the current work deals with CKCs, the
-choice of independent generalized coordinates $q\in \Real^d$ may be
-made such that $q\subset q'$. $q'$ is reordered as
-\begin{equation}
-  q' = \begin{bmatrix} q\\ z \end{bmatrix},
-  \label{eq:qreord}
-\end{equation}
-where $z\in \Real^{n-d}$ represents the rest of the coordinates in
-$q'$. Using the generalized coordinates of the component OKCs in the
-system, the set $q'$ becomes a set of link angles required to uniquely
-specify the configuration of the component OKCs, and $q$ becomes a set
-of $d$ link angles in those.
-
-Augmenting this choice along with the constraint equations yields a
-function
-\begin{align}
-  \Psi(q', q) &= \begin{bmatrix} \phi(q')\\ \begin{bmatrix} \bm{I}_{d\times d}
-      & \bm{0}_{d\times
-        (n-d)} \end{bmatrix}q' - q\end{bmatrix}\nonumber\\
-  \Psi&: \Real^n \times \Real^d \to \Real^n.
-  \label{eq:Psi} 
-\end{align}
-For the constraints to hold, $\Psi(q', q) = 0$ has to be ensured at
-each point during simulation. As in~\cite{ghorbel_modeling_2000}, for
-developing a reduced model in terms of the independent generalized
-coordinates $q$, the Implicit Function Theorem (IFT) is invoked on
-this function to establish sufficient conditions for the existence of
-a map $\sigma: \Real^d \to \Real^n$ defining
-\begin{equation}
-  q' = \sigma(q)
-  \label{eq:map}
-\end{equation}
-as the mapping between the dependent and independent generalized
-coordinates. Part of the requirements for this result is that the
-Jacobian $\Psi_{q'}$ be non-singular~\footnote{the others, concerning
-  the smoothness of the function, are all assumed to be valid for the
-  current applications}. This also provides the derivative matrix $\rho:
-\Real^n \times \Real^d  \to \Real^{n\times d}$ 
-\begin{equation}
-  \dot{q}' = \rho(q', q) q =
-  \underbrace{-\Psi_{q'}^{-1}\Psi_q}_{\rho(q', q)} q.
-  \label{eq:dermap}
-\end{equation}
-The ``workspace'' of the original system is defined by $\mathcal{U}'
-\triangleq \{q'\in \Real^n: \phi(q') = 0\} \subseteq
-\Real^n$. Physically, this is the sub-domain where the constraints are
-fully valid. The differential equation part of the DAE alone is
-sufficient to describe the system on this subspace. Following the
-above parametrization, a ``non-singular workspace'' is defined as
-$\mathcal{V}' \triangleq \{q'\in \mathcal{U}': \Psi_{q'} \neq 0\}
-\subseteq \mathcal{U}'$. Physically, this represents the domain
-wherein a ``reduced'' formulation of the system is definitely valid
-(domain of validity of the IFT~\footnote{It must be noted that the IFT is only a sufficient
-  condition for the existence of the maps. Singularity of the Jacobian
-  alone need not imply anything.}), i.e., the system may be
-represented locally using exactly $d$ independent generalized
-coordinates ($q$). A configuration $q'$ is said to be singular if
-$q'\in \mathcal{U}'$ but $q' \notin \mathcal{V}'$, i.e., $\Psi_{q'} =
-0$. This could imply either that the system can not be defined at all,
-or that the choice of the generalized coordinates is questionable for
-the given $q'$.
-
-Using the above mappings, it is possible to
-define~\cite{ghorbel_modeling_2000} a reduced system in a sub-space of
-$\mathcal{W'}\subseteq \mathcal{V}'$ (where the maps exist) as a set
-of $d$ ordinary differential equations:
-\begin{align}
-  \bm{D}(q')\ddot{q} + \bm{C}(q', \dot{q}')\dot{q} &+ h(q) =
-  u(t)\nonumber\\
-  \bm{D} &= \rho^T\bm{D}'\rho\nonumber\\
-  \bm{C} &= \rho^T\bm{D}'\dot{\rho} + \rho^T\bm{C}'\rho\nonumber\\
-  h &= \rho^T h'\nonumber\\
-  u &= \rho^T u'.
-  \label{eq:redmod}  
-\end{align}
-
-\subsection{Singular Perturbation Formulation (SPF)}
-\label{sec:sing-pert-form}
-
-A ``singularly perturbed'' dynamical system is defined as follows:
-\begin{align}
-  \bm{D}\ddot{q} + \bm{C}\dot{q} + h(q) &= u(t)\nonumber\\
-  \epsilon \dot{w} &= s(q, w).
-  \label{eq:spert0}
-\end{align}
-When the terms are appropriately scaled, $\epsilon$ represents the
-ratio of time-scales associated with the dynamics of $q$ and $w$. For
-small $\epsilon$, the dynamics of $w$ becomes infinitely faster
-relative to that of $q$ and the second equation in effect becomes the
-algebraic constraint $s(q, w) = 0$. As in~\cite{wange_domain_2004},
-the choice for the fast dynamics is $\dot{w} = -w/\epsilon $, with
-$w=\phi(q')$. Writing this in terms of the
-parameterization in~\cref{eq:qreord} defines the singularly perturbed
-system as,
-\begin{align}
-  \bm{D}(q, z)\ddot{q} + \bm{C}(q, z, \dot{q}, \dot{z})\dot{q} + h(q,
-  z) &= u(t)\nonumber\\
-  \dot{z} = -\phi_z^{-1}(q, z)\phi_q(q, z)\dot{q} &-
-            \frac{1}{\epsilon}\phi_z^{-1}(q, z)\phi(q, z).
-  \label{eq:spertsys}
-\end{align}
-In assessing the accuracy of the singularly perturbed system in
-representing that original DAE, the local form of Tikhonov's
-theorem~\cite{khalil2002nonlinear} may be invoked. Representing the
-dynamics of the states $x={\begin{bmatrix} q&
-    \dot{q} \end{bmatrix}}^T$ by $f(t, x, z, \epsilon)$, and that of
-the singular perturbation with respect to the variables $z$ by the
-function $g(t, x, z, \epsilon)$ as
-\begin{align}
-  \dot{x} &= f(t, x, z, \epsilon)\nonumber\\
-  \epsilon\dot{z} &= g(t, x, z, \epsilon).
-  \label{eq:spertform}                    
-\end{align}
-For a given solution $\bar{x}(t)$ of the original DAE, the solution in
-$z$ is given by the solution of the algebraic equation as $h(t,
-\bar{x})$. The ``fast dynamics'' of the system is retrieved by writing the
-equations in terms of the fast time-scale $\tau=t/\epsilon$ as 
-\begin{align}
-  \frac{dx}{d\tau} &= \epsilon f(t, x, z, \epsilon)\nonumber\\
-  \frac{dz}{d\tau} &= g(t, x, z, \epsilon).
-  \label{eq:fasttime}
-\end{align}
-Transforming this into the error coordinates $y-h(t, \bar{x})$, the
-dynamics is given by
-\begin{align}
-  \frac{dy}{d\tau} &= g(t, x, y+h, \epsilon) - \frac{\partial
-    h}{\partial t} - \epsilon f(t, x, z, \epsilon) \nabla_{\bar{x}}
-                     h(t, \bar{x}).
-  \label{eq:bdyn}                     
-\end{align}
-Setting $\epsilon=0$ gives the ``boundary layer'' system
-\begin{equation}
-  \label{eq:blsys}
-  \frac{dy}{d\tau} = g(t, x, y+h, 0) = -\phi_z^{-1}(q, y+h)\phi(q, y+h).
-\end{equation}
-If the origin of this system is uniformly exponentially stable
-(locally), Tikhonov's theorem guarantees that for $t \in [t_0, t_1]$,
-it is possible, given $t_b\in (t_0, t_1)$, to obtain $\epsilon^*(t_b,
-t_1)$ such that the error between the original and perturbed systems
-are of order $\mathcal{O}(\epsilon)$ for time $t\in
-(t_b, t_1]$ when $0< \epsilon< \epsilon^*$. The exponential stability
-of the origin may be concluded by if the eigen values of the
-corresponding Jacobian are all in the left half of the s-plane
-(Real-Imaginary plane)~\cite{gordon_singular_1998}, i.e.,
-\begin{equation}
-  \Re\{\lambda\{\nabla_y g(t, x, y+h, 0)\}\} \leq
-  \Re\{\lambda\{\nabla_y \phi_z^{-1}\phi \}\} \leq c \leq 0.
-  \label{eq:expstabor}
-\end{equation}
-Hence, $x-\bar{x} = \mathcal{O}(\epsilon)$ \& $z-h(t, \bar{x}) =
-\mathcal{O}(\epsilon)$ for $t\in (t_b, t_1]$. As
-in~\cite{wang_domain_2004}, it may also be shown that if an
-appropriate controller $u(t)$ is chosen to track a desired trajectory
-$x_d(t)$ such that the functions $f, g, h$ \& their partial
-derivatives bounded (in local compact domains in $x$ \& $y$, $t>0$ in
-$t$, and $\epsilon\in (0, \epsilon_0]$) and ensuring that the desired
-trajectory is tracked for the original DAE, the infinite time
-(uniform) version of Tikhonov's theorem will be applicable to
-demonstrate the accuracy (stability) of the singularly perturbed
-system in approximating the solution of the original DAE.
-
-It must be noted that $\phi_z$ becomes singular for the singular
-configurations of the system, rendering the perturbation dynamics
-in~\cref{eq:spertsys} undefined. Thus, the singularly perturbed form
-of the dynamical system approximates the original system as long as
-the system stays sufficiently away from singular configurations in the
-work-space, in addition to the conditions noted
-above. Quoting~\cite{gordon_singular_1998}, ``this limitation reflects
-the local nature of general nonlinear inversion methods which are used
-in all DAE solution methods''.
-
-Additionally, the domain of validity of the SPF model may be shown to
-be a superset of the non-singular work-space $\mathcal{V}'$~\cite{wang_domain_2004}. 
-\subsection{Set-Point Control}
-\label{sec:set-point-control}
-\begin{figure*}[!h]
-  \centering
-  \includetikzgraphics[5bar]{FIGS/diags}
-  \caption{Schematic of the 5-bar CKC with two 2-bar component
-    OKCs. $w_1$ \& $w_2$ represent the two kinematic loop-closure
-    constraint terms that will be set to zero.}
-  \label{fig:schem5}
-\end{figure*}
-
-Set-point control for fully known parameters is fairly trivial since a
-PD control with simple gravity compensation may be used to guarantee
-uniqueness and local asymptotic stability. The controller, in terms of
-the independent generalized coordinates, is given by
-\begin{equation}
-  u(t) = \bm{K}_P\underbrace{(q_d-q)}_{\tilde{q}} - \bm{K}_V\dot{q} +
-  h(q_d)
-  \label{eq:setptctrl}
-\end{equation}
-Since the nonlinear vector $h(q)$ is conservative in nature (arising
-from a potential), its potential function is defined, and is denoted
-by $V(q)$. Using a candidate function $\mathcal{V} =
-\frac{1}{2}\dot{q}^T\bm{D}(q)\dot{q} + V(q) + \tilde{q}^Th(q_d) +
-\frac{1}{2}\tilde{q}^T\bm{K}_P\tilde{q} $. The positive definiteness
-of this candidate function depends on the positive definiteness of the
-hessian term $\frac{\partial h}{\partial q}(q) + \bm{K}_P$. When
-$h(q)$ is Lipschitz and its gradient is bounded by $M_1$, gains in the
-diagonal matrix $\bm{K}_P$ may be chosen such that $k_{pi} >
-M_1$. This makes the function a valid Lyapunov candidate. The
-equilibria of the controlled system are the solutions of the algebraic
-equation,
-\begin{equation}
-  h(q_d) - h(q) = \bm{K}_P(q_d-q).
-\end{equation}
-The above condition on the gains of $\bm{K}_P$ are sufficient to
-conclude that the only solution of this is $q=q_d$.
-
-The time derivative of the Lyapunov function becomes
-\begin{equation*}
-  \dot{\mathcal{V}} = -\dot{q}^T\bm{K}_v\dot{q}.
-\end{equation*}
-Choosing a positive definite matrix $\bm{K}_v$ makes
-$-\dot{\mathcal{V}} \geq 0$. The set where $\dot{\mathcal{V}}=0$ is
-satisfied is $\dot{q}=0$, which corresponds to only equilibrium of the
-system, $q=q_d$. Hence, La Salle's theorem becomes
-applicable~\cite{vidyasagar1978nonlinear} and it is shown that the
-controlled system is uniformly asymptotically stable about the point
-$\begin{bmatrix} q_d & 0 \end{bmatrix}$.
-
-Two points must be made here regarding the above results: (1) The
-uniqueness of the equilibrium of the controlled system (after tuning
-the gains sufficiently), is guaranteed only if the derivative
-$\frac{\partial h}{\partial q}$ exists and is bounded. This, in turn,
-is true only when the mapping $\sigma(.)$ exists between $q$ \&
-$q'$. (2) All the results above, on account of being described based
-on locally defined dynamics, are only valid locally, as long as the
-system is sufficiently removed from the singular regions.
-
-\subsection{Tracking Control}
-\label{sec:tracking-control}
-Denoting the desired trajectory with $q_d(t), \dot{q}_d$ in terms of
-the independent generalized coordinates, the controller used
-in~\cite{wang_control_2006} is given by
-\begin{align}
-  u(t) = \bm{D}(q, z)a + \bm{C}(q, \dot{q}, &z, \dot{z})v + h(q) -
-  \bm{K}_Dr\nonumber\\
-  \tilde{q}(t) \triangleq q(t)-q_d(t)\quad &r=\dot{\tilde{q}} +
-  \bm{\Lambda} \tilde{q}\nonumber\\
-  v = \dot{q}_d-\bm{\Lambda}\tilde{q}\quad &a=\dot{v}.
-  \label{eq:trackctrl}
-\end{align}
-Substituting the above in the singularly perturbed equations, the
-closed loop equations of motion becomes,
-\begin{align}
-  &\bm{D}(q, z)\dot{r} + \bm{C}(q, \dot{q}, z, \dot{z})r + \bm{K}_Dr =
-    0\nonumber\\
-  &\dot{w} = -\frac{1}{\epsilon}w.\label{eq:trackclloop}
-\end{align}
-Including the dynamics of $w$ in the system implies that the
-state-space is represented by ${\begin{bmatrix} q & \dot{q} &
-    w \end{bmatrix}}^T$. It must be noted that the derivatives of $w$
-are not part of this state-vector. Choosing the function candidate
-\begin{align}
-  \mathcal{V}(t, q, \dot{q}, w) &= d_1V_1(t, q, \dot{q}, w) + d_2V_2(t,
-                                  q, \dot{q}, w)\nonumber\\
-                                &= d_1\left( \frac{1}{2}r^T\bm{D}r +
-                                  \tilde{q}^T \bm{\Lambda}^T \bm{K}_D
-                                  \tilde{q} \right) +\nonumber\\
-                                & \qquad\qquad\qquad
-                                  d_2\left(\frac{1}{2}w^T\bm{M} w
-                                  \right),
-  \label{eq:lyapcand}
-\end{align}
-where $\bm{M}$ is some constant, diagonal, positive definite matrix,
-the properties are first established below. Since the current study
-deals with CKCs whose component OKCs all have bounded inertia
-matrices, $\bm{D}'$ is bounded. Since $\bm{D} = \rho^T\bm{D}'\rho$,
-matrix $\bm{D}$ is bounded as long as the trajectory stays away from
-singular configurations. The other parts of the function are each
-positive definite since they are quadratic in their components with
-constant, positive definite weights. Thus, the function candidate
-$\mathcal{V}(.)$ is a suitable candidate for Lyapunov stability
-analysis of the controlled system. The first time derivative of the
-function is given as
-\begin{align}
-  \dot{\mathcal{V}}(t, q, \dot{q}, w) &= d_1\left(\frac{1}{2}r^T
-                                        (\dot{\bm{D}} - 2\bm{C})r
-                                        -r^T\bm{K}_Dr
-                                        -2\dot{\tilde{q}}^T
-                                        \bm{\Lambda} \bm{K}_D\tilde{q}
-                                        \right)\nonumber\\
-                                      &- \frac{d_2}{\epsilon}\left(
-                                        w^T\bm{M}w \right)\nonumber\\
-  &= -d_1\dot{\tilde{q}}^T\bm{K}_D\dot{\tilde{q}} -d_1
-    \tilde{q}^T\bm{\Lambda}^T \bm{K}_D \bm{\Lambda} \tilde{q} -
-    \frac{d_2}{\epsilon} w^T \bm{M} w.
-  \label{eq:lyapdot}
-\end{align}
-It can be observed that $-\dot{\mathcal{V}}$ is locally positive
-definite. Hence, the equilibrium of the closed loop system $(q_d(t),
-\dot{q}_d(t), w=0)$ is locally asymptotically
-stable~\cite{vidyasagar1978nonlinear}. Further, invoking the results
-from~\cref{sec:sing-pert-form}, it is recalled that stability of the
-perturbed system implies stability of the original DAE system.
-
-\subsection{Model Description}
-\label{sec:model-description}
-
-\Cref{fig:schem5} represents a schematic view of the 5-bar mechanism
-to be considered for the current study. Each link has mass $m_i$,
-planar moment of Inertia $I_i$, link length $l_i$, and length from pin
-to center of mass $c_i$ describing the equations of motion (see
-\cref{sec:equations-motion} for exact expressions). The dependent and
-the independent generalized coordinates are chosen as $q'
-= \begin{bmatrix} \theta_1 & \theta_2 & \theta_3 &
-  \theta_4 \end{bmatrix}^T$ and $q = \begin{bmatrix} \theta_1 &
-  \theta_3 \end{bmatrix}^T$ respectively (giving $n=4$, $d=2$). As can
-be observed, the CKC is formulated as consisting of two 2-bar OKCs: 
-[Link 1-Link 2] and [Link 3-Link 4] respectively. Thus, the
-loop-closure constraints $\phi(.): \Real^4 \to \Real^2$ giving
-$\phi(q') = \begin{bmatrix} w_1 & w_2 \end{bmatrix}^T$ represent the
-constraint of the end effector points from both the components to be
-coincident. Since the mechanism is planar, this leads to the
-corresponding two constraints.
-
-\begin{table}[!h]
-  \centering
-  \caption{Specifications of the 5-bar mechanism}
-  \begin{tabular}[!h]{lcccc}
-    \hline
-    & Length & CM & Mass & Inertia\\
-    Link & $l_i$ & $c_i$ & $m_i$ & $I_i$\\
-    \hline
-    0 & 0.3048 & - & - & -\\
-    1 & 0.2794 & 0.1466 & 0.2451 & $2.770\times 10^{-3}$\\
-    2 & 0.3048 & 0.1581 & 0.2611 & $3.476\times 10^{-3}$\\
-    3 & 0.3048 & 0.1467 & 0.2611 & $3.476\times 10^{-3}$\\
-    4 & 0.2794 & 0.1410 & 0.2352 & $2.607\times 10^{-3}$\\
-    \hline 
-  \end{tabular}
-  \label{tab:5barspec}
-\end{table}
-
-\Cref{tab:5barspec} gives the specifications that were used
-in~\cite{ghorbel_modeling_2000} for the 5-bar mechanism, representing
-the identified quantities for the Rice Planar Delta Robot (RPDR); the
-same parameters will be used for the current investigation.
-
-\section{Results and Discussions}
-\label{sec:results-discussions}
-
-\subsection{Singular Configurations}
-\label{sec:sing-conf}
-
-Since singularity of the matrix $\Psi_{q'}$ implies that a map from
-the independent to the dependent generalized coordinates can no longer
-be defined using the results from the classical IFT. The
-configurations where this happens are traced out
-in~\cref{fig:sing5}.
+\section{Formulation}
+\label{sec:formulation}
 
 \begin{figure}[!h]
   \centering
-  \includegraphics[width=\linewidth]{FIGS/SING5}
-  \caption{Singular Configurations of the mechanism. Unreachable
-    configurations are shaded gray.}
-  \label{fig:sing5}
+  \includegraphics[width=0.6\linewidth]{FIGS/schem}
+  \caption{Schematic for the Kinematics}
+  \label{fig:schem}
+\end{figure}
+\Cref{fig:schem} depicts a schematic representation of the beam
+kinematics. From the assumption that plane sections remain planar, the
+deformed coordinates of any material point may be given as,
+\begin{equation}
+  \begin{Bmatrix}
+    x\\ y
+  \end{Bmatrix} =
+  \begin{Bmatrix}
+    X + u_X - Y\sin\theta\\
+    u_Y + Y\cos\theta
+  \end{Bmatrix}.
+  \label{eq:def}
+\end{equation}
+Upper- and lower-case characters denote original and deformed
+coordinates respectively. The deformation gradient is
+\begin{equation}
+  \bm{F} = \nabla
+  \begin{Bmatrix}
+    x\\y
+  \end{Bmatrix} =
+  \begin{bmatrix}
+    1+u_X'-Y\theta'\sin\theta & -\sin\theta\\
+    u_Y'-Y\theta'\cos\theta & \cos\theta
+  \end{bmatrix}.
+  \label{eq:defgrad}
+\end{equation}
+Primes ($'$) denote differentiation with respect to $X$, the original
+$X$ coordinate. The Green-Lagrange strain tensor (defined in the
+original coordinates) is given by,
+\begin{align}
+  2\bm{E} &= \bm{F}^T\bm{F} - \bm{I}\nonumber\\
+  &=
+    \begin{bmatrix}
+      {(u_X'-Y\theta'\sin\theta)}^2+{(u_Y'-Y\theta'\cos\theta)}^2+2(u_X'-Y\theta'\sin(\theta))
+      & -(1+u_X')\sin\theta+(u_Y')\cos\theta\\
+      -(1+u_X')\sin\theta+(u_Y')\cos\theta & 0
+    \end{bmatrix}
+  \label{eq:strain}
+\end{align}
+As can be seen, the transverse strain $\epsilon_{YY}$ is identically
+0. Denoting the axial strain as $\epsilon_{XX}$ and the shear strain
+(engineering definition, 2x) as $\gamma_{XY}$, the independent strain
+components are written out as a polynomial in $Y$ as follows:
+\begin{align}
+  \begin{Bmatrix}\epsilon\end{Bmatrix} = \begin{Bmatrix} \epsilon_{XX}\\\gamma_{XY} \end{Bmatrix}
+  &= \begin{Bmatrix}
+    \frac{1}{2}\left({(u_X'-Y\theta'\sin\theta)}^2+{(u_Y'-Y\theta'\cos\theta)}^2+2(u_X'-Y\theta'\sin(\theta))\right)\\-(1+u_X')\sin\theta+(u_Y')\cos\theta \end{Bmatrix}\nonumber\\
+  &= \begin{Bmatrix}
+    \frac{1}{2}\left({u_X'}^2+{u_Y'}^2+2u_X'\right)\\-(1+u_X')\sin\theta+(u_Y')\cos\theta \end{Bmatrix}
+  + Y\begin{Bmatrix}
+    -\theta'\left((1+u_X')\cos\theta+(u_Y')\sin\theta\right)\\0 \end{Bmatrix}\nonumber\\
+  &+ Y^2\begin{Bmatrix}
+    \frac{1}{2}{\theta'}^2\\0 \end{Bmatrix}\nonumber\\
+  &= \begin{Bmatrix}\epsilon_0\\\gamma_0\end{Bmatrix} +
+  Y\begin{Bmatrix} \epsilon_1\\0 \end{Bmatrix} + Y^2\begin{Bmatrix}
+    \epsilon_2\\0 \end{Bmatrix}
+  \label{eq:strainexp}
+\end{align}
+The expansion shows that the strain state at any point may be captured
+with four functions of the displacement field, $\epsilon_0$,
+$\gamma_0$, $\epsilon_1$, and $\epsilon_2$. The exact forms of the
+gradients and the hessians of these functions are given
+in~\cref{sec:relv-funct-deriv}.
+
+Using the constitutive law for a perfectly elastic linear isotropic
+homogeneous material, the corresponding stresses are written down in
+terms of the Young's modulus $E$ and the shear modulus $G$ (related
+through the Poisson's ratio $\nu$ as $G=E/2(1+\nu)$).
+\begin{equation}
+  \begin{Bmatrix}\sigma\end{Bmatrix} = \begin{Bmatrix}E\epsilon_0\\G\gamma_0\end{Bmatrix} +
+  EY\begin{Bmatrix} \epsilon_1\\0 \end{Bmatrix} + EY^2\begin{Bmatrix}
+    \epsilon_2\\0 \end{Bmatrix}
+  \label{eq:stress}
+\end{equation}
+
+\subsection{Strain Energy Density}
+\label{sec:stra-energy-dens}
+
+Using~\crefrange{eq:strainexp}{eq:stress} one may write down the
+strain energy density in terms of the aforementioned scalar functions
+as,
+\begin{align}
+  \bar{\mathcal{V}} &= \frac{1}{2}
+                {\begin{Bmatrix}\sigma\end{Bmatrix}}^T \begin{Bmatrix}\epsilon\end{Bmatrix}\nonumber\\
+  &= \frac{1}{2}\left[ (E{\epsilon_0}^2 + G{\gamma_0}^2) +
+    Y(2E\epsilon_0\epsilon_1) +
+    Y^2(E{\epsilon_1}^2+2E\epsilon_0\epsilon_2) +
+    Y^3(2E\epsilon_1\epsilon_2) + Y^4(E\epsilon_2^2)\right]
+  \label{eq:sedens}
+\end{align}
+Further, if one makes the assumption that the central axis passes
+through the centroid for each section, $\bar{\mathcal{V}}$ may be
+integrated over each material section to give the linear strain energy
+density based on the zeroth (area), second, and  fourth moments of the
+cross sectional area defined as follows.
+\begin{align}
+  A &= \int Y^0 dA\nonumber\\
+  I_2 &= \int Y^2 dA\label{eq:armoms}\\
+  I_4 &= \int Y^4 dA
+\end{align}
+It must be noted that the odd moments drop off if the coordinate $Y$
+is measured from the neutral plane.
+
+Thence, the linear strain energy density is,
+\begin{equation}
+  \mathcal{V} = \frac{1}{2}\left[ (EA{\epsilon_0}^2 + GA{\gamma_0}^2)
+    + (EI_2{\epsilon_1}^2+2EI_2\epsilon_0\epsilon_2) + (EI_4{\epsilon_2}^2)\right]
+  \label{eq:linsedens}
+\end{equation}
+The internal forces and thus the governing differential equation may
+be obtained by imposing stationarity in the integral of the potential
+$\mathcal{V}$ over the whole length of the beam.
+
+\subsection{Kinetic Energy Density}
+\label{sec:kinet-energy-dens}
+
+The kinetic energy density is,
+\begin{align}
+  \bar{\mathcal{T}} &= \frac{1}{2}\rho\left({\frac{d}{dt}(x-X)}^2 +
+                      {\frac{d}{dt}(y-Y)}^2\right)\nonumber\\
+                    &= \frac{1}{2}\rho\left(
+                      {\frac{d}{dt}(u_X-Y\sin\theta)}^2 +
+                      {\frac{d}{dt}(u_Y+Y\cos\theta-Y)}^2
+                      \right)\nonumber\\
+                    &= \frac{1}{2}\rho(\dot{u_X}^2+\dot{u_Y}^2) -
+                      Y\left(\rho\dot{\theta}(\dot{u_X}\cos\theta +
+                      \dot{u_Y}\sin\theta \right)
+                      + Y^2\left(\frac{1}{2}\rho \dot{\theta}^2\right).
+  \label{eq:kedens}
+\end{align}
+Here, dots ($\dot{()}$) represent differentiation with time.
+
+Once again, integration over the section offers a much simpler
+expression for the linear kinetic energy density $\mathcal{T}$.
+\begin{equation}
+  \mathcal{T} = \frac{\rho A}{2}(\dot{u_X}^2 + \dot{u_Y}^2) +
+  \frac{\rho I_2}{2}\dot{\theta}^2
+  \label{eq:linkedens}
+\end{equation}
+
+Using the above two quantities, the linear Lagrangian density is given
+as,
+\begin{equation}
+  \mathcal{L} = \mathcal{T} - \mathcal{V}.
+  \label{eq:lageq}
+\end{equation}
+Stationarity of the lagrangian with respect to the degrees of freedom
+in the formulation will allow us to obtain the ``internal forces'' or
+the equations of motion.
+
+\subsection{External Forcing}
+\label{sec:external-forcing}
+
+The external forcing can be of two broad types: follower and
+non-follower forces. Follower forces are applied in a direction that
+is fixed with respect to the beam locally, while non-follower forces
+are applied in a direction that is fixed with respect to the initial
+configuration of the beam. The virtual work done by each of these
+forces is used to develop the consistent finite element
+formulation. \Cref{fig:lds} shows schematics for the same.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!h]{0.5\linewidth}
+    \centering{}
+    \includegraphics[width=\linewidth]{FIGS/nonfollowerload}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!h]{0.5\linewidth}
+    \centering{}
+    \includegraphics[width=\linewidth]{FIGS/followerload}
+    \caption{}
+  \end{subfigure}  
+  \caption{(a) Non-Follower and (b) Follower loads: Schematic}
+  \label{fig:lds}
 \end{figure}
 
-It can be seen in this case that both these ``singularities'' result
-in the mechanism getting locked onto a configuration wherein the
-independent generalized coordinates are no longer strictly
-independent. In the Type 1 singularity, $\theta_1$ \& $\theta_3$ get
-``locked on'' to particular values, with links 2 \& 4 degenerating
-into a pendulum-like behavior. In the Type 2 singularity, $\theta_1$
-\& $\theta_3$ have a functional relationship represented by the closed
-curve in the plot, reflecting the fact that links 2 \& 4 have locked
-against each other in such a way as to make the mechanism effectively
-4-bar. In both these singularities, the system ceases to have two DOFs
-and becomes just single DOF systems. Type 1 singularity is represented
-by just a single point since eventhough the system has a single DOF,
-changes in configuration do not correspond to any changes in the
-chosen generalized coordinates.
-
-\subsection{Set-Point Control}
-\label{sec:set-point-control-1}
-
-\begin{figure*}[!h]
-  \centering
-  % \setcounter{mytempcntr}{\value{figure}}
-  % \setcounter{figure}{3}
-  \centering
-  \begin{subfigure}[!t]{0.5\linewidth}
-    \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/SETPOINTOBJ}
-    \caption{}
-    \label{fig:setptobj}
-  \end{subfigure}%
-  \begin{subfigure}[!t]{0.5\linewidth}
-    \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/SETPT_3}
-    \caption{}
-    \label{fig:setpt3}
-  \end{subfigure}
-  
-  \begin{subfigure}[!t]{0.5\linewidth}
-    \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/SETPT_1}
-    \caption{}
-    \label{fig:setpt1}
-  \end{subfigure}%
-  \begin{subfigure}[!t]{0.5\linewidth}
-    \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/SETPT_2}
-    \caption{}
-    \label{fig:setpt2}
-  \end{subfigure}
-  \caption{Set-Point Control Results. (a) represents the initial
-    (blue) and desired (red) configurations, (b) shows the control
-    torque time history, and (c-d) show the angular error and
-    velocities for $\theta_1$ \& $\theta_3$. Dashed lines are
-    simulations with the SPF; continuous lines are simulations with
-    the reduced system.}
-  \label{fig:setpoint}
-  % \setcounter{figure}{\value{mytempcntr}}
-\end{figure*}
-
-\Cref{fig:setptobj} represents the initial configuration (which
-happens to be a stable equilibrium for the system) in
-\textcolor{blue}{blue} and the final configuration in
-\textcolor{red}{red} for the set-point control test case. The
-controller gains are chosen as
+\paragraph{Non-Follower Forces}
+The virtual work done by non-follower forces is only related to the
+global degrees of freedom $u_X$ \& $u_Y$. Hence the virtual work done
+will be,
 \begin{equation}
-  \bm{K}_P = \begin{bmatrix} 10 & 0\\ 0 & 10 \end{bmatrix},
-  \,\text{and}\,\,
-  \bm{K}_v = \begin{bmatrix} 1 & 0\\ 0 & 1 \end{bmatrix}.
-  \label{eq:setptgains}
+  \delta[w]_{nf} = f_1\delta[x-X] + f_2\delta[y-Y] =
+  f_1\delta[u_X-Y\sin\theta] + f_2\delta[u_Y+Y\cos\theta-Y] + \frac{M}{A}\delta[\theta]
+  \label{eq:nflw}
 \end{equation}
-The gains were fixed based on the control impulses
-(see~\cref{fig:setpt3}) not exceeding
-$30Nm$ in the initial regime. \Crefrange{fig:setpt1}{fig:setpt2} show
-the control performance in terms of the angle errors with respect to
-both the angles $\theta_1$ \& $\theta_3$ as well as their
-corresponding angular velocities $\dot{\theta}_1$ \&
-$\dot{\theta}_3$. For the SPF simulations, the perturbation parameter
-$\epsilon$ is fixed to be $10^{-3}$ based on trial and error in order
-to give satisfactory accuracy with respect to the exact system. It can
-be observed that as proven, the controller is effective in stabilizing
-the system at the desired configuration. The simulations were
-conducted using just the reduced model (as in~\cref{eq:redmod}) as
-well as the SPF (as in~\cref{eq:spertsys}). A notable difference is
-that the nonlinear mapping $\sigma(.)$ is not known analytically and a
-nonlinear solver will have to be employed at each step for the reduced
-model, while the SPF does not involve this cost at each time step: all
-the link angles are already part of the state-space.
+Integrating this over a section, and assuming
+$f_1(Y)=F_1/A$,
+\& $f_2(Y)=F_2/A$, the virtual work done becomes,
+\begin{equation}
+  \delta[W]_{nf} = F_1\delta[u_X] + F_2\delta[u_Y] + M\delta[\theta]
+  \label{eq:nflvwrk}  
+\end{equation}
 
-The reduced model results are plotted using continuous lines and the
-SPF results are plotted using dashed lines in~\cref{fig:setpoint}. It
-can be observed that the SPF follows the reduced model closely
-throughout the simulation, serving additionally, as a demonstration
-for the convergence results in~\cref{sec:sing-pert-form}.
+If applied in a nodal sense, the nodal force vector will have the two
+forces $F_1$ \& $F_2$ and the moment $M$.
+$$ \{F^n\} = \begin{Bmatrix} F_1\\F_2\\M \end{Bmatrix} $$
+If, on the other hand, the forcing is applied in a distributed manner,
+this will have to be integrated with the shape functions. The current
+study does not involve distributed forces and it will not be developed
+here.
 
-\subsection{Tracking Control}
-\label{sec:tracking-control-1}
+\paragraph{Follower Forces}
 
-For the tracking control, the desired trajectory is fixed in terms of
-the independent generalized coordinates as
+The virtual work done by follower forces is given by,
 \begin{align}
-  \theta_1^d(t) &= \frac{\pi}{3}\sin t\nonumber\\
-  \theta_3^d(t) &= \frac{\pi}{4}(1-\cos t)
-  \label{eq:trackdes}.
+  \delta[w]_f &= f_1\delta[(x-X)\cos\theta + (y-Y)\sin\theta] +
+                f_2\delta[-(x-X)\sin\theta+(y-Y)\cos\theta] +
+                \frac{M}{A}\delta[\theta]\nonumber\\ 
+              &= (f_1\cos\theta-f_2\sin\theta)\delta[u_X] +
+                (f_1\sin\theta+f_2\cos\theta)\delta[u_Y]\nonumber\\
+              &+ (-f_1u_X\sin\theta + f_1u_Y\cos\theta -
+                f_2u_X\cos\theta - f_2u_Y\sin\theta +
+                \frac{M}{A})\delta[\theta]\nonumber\\
+              &+ Y(-f_1\cos\theta +
+                f_2\sin\theta)\delta[\theta]\label{eq:flwrk}
 \end{align}
-It was ensured that no kinematic singularities $\Psi_{q'}=0$ occurs
-along the trajectory. Using the control law in~\cref{eq:trackctrl}
-with the gain matrices fixed to
+Once again, integrating this over the section, and assuming constants
+as before, this becomes,
+\begin{align}
+  \delta[W] &= (F_1\cos\theta-F_2\sin\theta)\delta[u_X] +
+              (F_1\sin\theta+F_2\cos\theta)\delta[u_Y]\nonumber\\
+            &+ (F_1(-u_X\sin\theta+u_Y\cos\theta) -
+              F_2(u_X\cos\theta+u_Y\sin\theta))\delta[\theta]
+  \label{eq:flvwrk}
+\end{align}
+Thus, the nodal forces become,
+\begin{equation*}
+\{F^n\} = \begin{Bmatrix} F_1\cos\theta - F_2\sin\theta\\
+  F_1\sin\theta + F_2\cos\theta\\ F_1(-u_X\sin\theta+u_Y\cos\theta) -
+  F_2(u_X\cos\theta + u_Y\sin\theta)\} \end{Bmatrix}
+\end{equation*}
+Since this depends on the state of the system, the corresponding
+Jacobian is also developed by differentiation as follows:
+\begin{equation*}
+  J = F_1\begin{bmatrix} 0&0&-\sin\theta\\ 0&0&\cos\theta\\
+    -\sin\theta&\cos\theta&-(u_X\cos\theta +
+    u_Y\sin\theta) \end{bmatrix} + F_2\begin{bmatrix}
+    0&0&-\cos\theta\\ 0&0&-\sin\theta\\
+    -\cos\theta&-\sin\theta&(u_X\sin\theta-u_Y\cos\theta) \end{bmatrix}
+\end{equation*}
+
+\subsection{Boundary Conditions}
+\label{sec:boundary-conditions}
+
+The specification of Dirichlet Boundary conditions at nodal locations
+is classified into two parts: (a) Homogeneous and (b) In-homogeneous
+boundary conditions.
+
+For the homogeneous boundary conditions, the displacement of a
+particular node is specified to be exactly zero. For a case with $N_d$
+total degrees of freedom with $N_h$ homogeneous boundary conditions, a
+transformation matrix $\mathbf{B}$ is constructed from the
+$N_d-$identity matrix by removing the columns corresponding to the
+DOFs where the boundary conditions are specified. This can be used to
+specify a ``reduced'' vector of degrees of freedom $u^{red}$ as,
+$$ u^{full} = \mathbf{B}u^{red} $$
+Interpreting $\mathbf{B}$ as a Galerkin projection matrix, the
+residual matrix and its derivatives are transformed as follows:
+\begin{align*}
+  R^{red} &= \mathbf{B}^TR^{full}\\
+  R^{red}_{u^{red}} &= \mathbf{B}^TR^{full}_{u^{full}}\mathbf{B}\\
+  {\left(R_{uu}\right)}^{red}_{ijk} &= \mathbf{B}_{li} \mathbf{B}_{lj}
+                                      \mathbf{B}_{lk}
+                                      {\left(R_{uu}\right)}^{full}_{ijk}
+\end{align*}
+
+For inhomogeneous boundary conditions, the corresponding residual
+equation is replaced by,
+$$ u_k = d_i $$
+where $u_k$ is the nodal degree of freedom where the boundary
+condition has been specified, and $d_i$ is the boundary
+specification. In the Jacobian matrix, all entries except for the one
+corresponding to the $k^{th}$ column are set to zero in the $k^{th}$
+row. In order to avoid numerical ill-conditioning of the Jacobian
+matrix, one could pre-multiply the left- and right-hand sides of the
+equation by a constant in the order of magnitude of the rest of the
+entries in the Jacobian matrix. For the current work, a conditioning
+coefficient was introduced by looking at the order of diagonal
+elements of the Jacobian matrix of the internal force about the
+trivial solution. The corresponding third derivative entries are all
+set to zero.
+
+\subsection{Finite Element Formulation}
+\label{sec:finite-elem-form}
+
+For the finite element formulation, 2-noded elements will be used in
+the current study. Since the current approach is intended to be valid
+for large deformations and strains, the limits of the integral will be
+dependent on the degrees of freedom. This is calculated succinctly
+using a linear projection onto a line spanning from $-1$ to $+1$. This
+transformation is,
+\begin{align}
+  x(\xi) &= \underbrace{\frac{1-\xi}{2}}_{N_1(\xi)}x_1 +
+           \underbrace{\frac{1+\xi}{2}}_{N_2(\xi)}x_2\nonumber\\
+  \implies u(x) = u(x(\xi)) = u(\xi) &= N_1(\xi)u_1 +
+                                       N_2(\xi)u_2\nonumber\\
+         &= \begin{bmatrix}N_1(\xi) &
+           N_2(\xi)\end{bmatrix} \begin{Bmatrix}
+           u_1\\u_2 \end{Bmatrix}\label{eq:isopar}
+\end{align}
+The nodal degrees of freedom are represented by
 \begin{equation}
-  \label{eq:trackgains}
-  \bm{\Lambda} = \begin{bmatrix} 1.0 & 0\\0 & 1.0 \end{bmatrix}\,
-  \text{and}\,
-  \bm{K}_d = \begin{bmatrix} 10.0 & 0\\0 & 10.0 \end{bmatrix},
+  \begin{Bmatrix} d^n \end{Bmatrix} = \begin{Bmatrix} u_{X}\\ u_{Y}\\
+    \theta \end{Bmatrix}.
+    \label{eq:ndofs}
 \end{equation}
-simulations were carried out for the system. The initial condition was
-fixed to be the stable equilibrium initial condition used for the
-set-point control (see \textcolor{blue}{blue} configuration
-in~\cref{fig:setptobj}). The singular perturbation coefficient
-$\epsilon$ is fixed to $10^{-4}$ to give satisfactory accuracy over
-the regime of interest. 
+Thus, for any given 2-noded element, the element degrees of freedom
+are,
+\begin{equation}
+  \label{eq:1}
+  \begin{Bmatrix} d^e \end{Bmatrix} = \begin{Bmatrix} u_{X_1}\\ u_{Y_1}\\
+    \theta_1\\ u_{X_2}\\ u_{Y_2}\\ \theta_2 \end{Bmatrix}.
+\end{equation}
 
-\Cref{fig:trackobj} depicts a configuration-space view of the response
-of the system. Due to the choice of the objective, the desired
-trajectory will be a closed ellipse here. It can be observed that
-although the system starts from a completely different configuration,
-the controller effectively makes the desired trajectory
-convergent. \Cref{fig:track3} depicts the time histories of the
-control impulses required for each torquer. Once again, the gains
-above were fixed in such a manner that the maximal control impulse
-does not exceed $30 Nm$ for the initial transients and $5Nm$ at steady
-state operation. \Crefrange{fig:track1}{fig:track2} depict the time
-histories of these quantities for one and a half cycles of
-operation. It can be observed that the singularly perturbed form
-exactly follows the desired trajectory, but the more exact reduced
-model periodically sees some deviations, which are soon corrected by
-the controller. This demonstrates a crucial aspect of the convergence
-proof presented in~\cref{sec:tracking-control}, namely that the
-stability result for the controller is applicable only for the
-SPF. The original system ends up being stabilized on account of
-Tikhonov's theorem assuring that the deviation between the SPF and the
-DAE responses is always bounded to be within
-$\mathcal{O}(\epsilon)$. Thus, using a controller whose stability is
-established only for the SPF model can be used to effectively control
-the original system.
+Thence, the Lagrangian over an element is,
+\begin{equation}
+  L = \int\limits_0^{L_e} \mathcal{L} dx = \int\limits_{-1}^{1} \mathcal{L} \frac{L_e}{2} d\xi
+  \label{eq:Lagtot}
+\end{equation}
+Hence, for the total Lagrangian formulation, the quantity that will
+have to be made stationary over the element is $\mathcal{E} =
+\frac{1}{2}\mathcal{L}L_e$. $L_e$ is the element length, given by,
+\begin{equation}
+  L_e = \sqrt{ {(X_2+u_{X_2}-X_1-u_{X1})}^2 + {(u_{Y_2}-u_{Y_1})}^2 }.
+  \label{eq:Le}  
+\end{equation}
+The equations of motion, in terms of the element-nodal degrees of
+freedom, will be derived as,
+\begin{equation}
+  \frac{d}{dt}\frac{\partial \mathcal{E}}{\partial
+    \dot{\begin{Bmatrix}d^e\end{Bmatrix}}} - \frac{\partial
+    \mathcal{E}}{\partial \begin{Bmatrix}d^e\end{Bmatrix}}
+  = \begin{Bmatrix} F^e \end{Bmatrix}
+  \label{eq:femeom}
+\end{equation}
+\Cref{sec:finite-elem-equat} gives the complete expressions for the
+equations of motion. In summary, the dynamical equations of the system
+will be represented as,
+\begin{equation}
+  \mathbf{D}(d)\{ \ddot{d} \} + \mathbf{C}(d, \dot{d})\{ \dot{d} \} +
+  \{ F^{int} \} = \{ F^{ext} \}
+  \label{eq:dyneom}
+\end{equation}
 
+\section{Path Following and Bifurcation Analysis}
+\label{sec:path-foll-bifurc}
 
-\begin{figure*}[!h]
+In order to understand the behavior of the system over a range of
+loading values (or any other control parameter), the current study
+uses numerical continuation and eigenvalue-based indirect critical
+point identification. The generalized algebraic system with an unknown
+vector $u$ and the scalar parameter $\lambda$ is represented by
+\begin{equation}
+  u(\lambda)\quad s.t.\quad R(u, \lambda) = 0,
+  \label{eq:genalgeq}
+\end{equation}
+where $u\in \mathcal{R}^n$, $\lambda\in \mathcal{R}$, and $R(., .):
+\mathcal{R}^n\times \mathcal{R}\to \mathcal{R}^n$. Numerical
+continuation seeks to add an additional equation to this system so
+that the parameter $\lambda$ may also be considered as an unknown in
+the stepping procedure.
+
+Two strategies for this are followed presently, both based on placing
+constraints on the deviation of the incrementally stepped solution
+from the previous solution on the branch. The first strategy, termed
+as \textbf{arc-length continuation}, uses an equation that constrains
+the successively stepped solution to lie on a hyper-elliptical surface
+centered at the previous solution. Referring to the previous point
+with $0$ as a subscript, the constraint for the successive point is
+represented by,
+\begin{equation}
+  f(u, \lambda)\rvert_{u_0, \lambda_0} =
+    \sqrt{c{(u-u_0)}^T\mathbf{K}{(u-u_0)} + b\lambda^2} - \Delta s = 0.
+  \label{eq:ALCNST}
+\end{equation}
+The Jacobian at the previous step ($\partial R/\partial u\rvert_{u_0,
+  \lambda_0}$) is used as the weighting matrix $\mathbf{K}$. $b$ and
+$c$ are weighing constants with a functional relationship taken as,
+\begin{align*}
+  q &= \frac{\partial R}{\partial u}\biggr\rvert_{u_0, \lambda_0}^{-1}
+      \frac{\partial R}{\partial \lambda}\biggr\rvert_{u_0, \lambda_0}\\
+  c &= \frac{1-b}{q^T\mathbf{K}q}
+\end{align*}
+
+The second strategy, termed as the \textbf{pseudo arc-length
+  continuation}, is based on ensuring that the successive point lies
+on a point on the response curve which makes a given step-length when
+perpendicularly projected onto the tangent vector at the previous
+step. The constraint equation is given by,
+\begin{equation}
+  f(u, \lambda)\rvert_{u_0, \lambda_0} =
+  {(u-u_0)}^T\dot{u}_0 + (\lambda-\lambda_0)\dot{\lambda}_0 - \Delta s = 0.
+  \label{eq:PALCNST}
+\end{equation}
+The tangents are estimated through the first derivative of the
+residual function with respect to the arc-length,
+\begin{align*}
+  \dot{R} = \frac{dR}{ds} &= \frac{\partial R}{\partial u}\dot{u} +
+                            \frac{\partial R}{\partial \lambda}
+                            \dot{\lambda} = 0\\
+  z &= {\frac{\partial R}{\partial u}}^{-1}
+      \frac{\partial R}{\partial \lambda}\\
+  \dot{\lambda} &= \frac{1}{\sqrt{1+z^Tz}}\\
+  \dot{u} &= \dot{\lambda}z
+\end{align*}
+The last few relations arise out of insisting on a unit 2-normed
+tangent.
+
+For both cases, the predictor for each solution is given using the
+``tangent predictor'', i.e., $u^p = u_0+\dot{u}\Delta s$ \& $\lambda^p
+= \lambda_0+\dot{\lambda}\Delta s$.
+
+In order to detect bifurcations, the indeterminacy of the tangent is
+taken to be the primary criterion. This is monitored by looking at the
+eigenvalues of the tangent stiffness matrix $\partial R/\partial u$ at
+each point on the curve. When all the eigen-values are positive, it
+denotes that the current point is a locally stable solution since this
+indicates that it is at a local minimum point of the potential of the
+linearized forcing (Positive-Definiteness of stiffness $\implies$
+Positive-Definiteness of the Hessian of Potential). If a particular
+eigen-value (ordered by increasing value) changes sign, between
+consecutive steps along the iterations, a bisection search is
+conducted between the two steps (points) to obtain an estimate of the
+loading point where the eigen-value is exactly $0$. The ``direction of
+indeterminacy'', denoted by $z$, is estimated using the eigen-vector
+corresponding to the zero-eigenvalue and the tangent is represented as
+a linear combination of this and a ``particular tangent'', denoted by
+$y$, in the null-space of this vector. The particular solution is
+estimated using the first order rate equations of the residual
+function as follows:
+\begin{align*}
+  \dot{u} &= (\sigma z + y)\dot{\lambda}\\
+  \dot{R} = \frac{\partial R}{\partial u}\dot{u} + \frac{\partial R}{\partial \lambda}\dot{\lambda} &= 0\\
+  \implies \left( \frac{\partial R}{\partial u}(\sigma z + y) +
+  \frac{\partial R}{\partial \lambda} \right)\dot{\lambda} &= 0\\
+  \implies y &= -{\frac{\partial R}{\partial u}}^{-1} \frac{\partial
+               R}{\partial \lambda}
+\end{align*}
+where $\sigma$ is some weight representing a generic linear
+combination. For determining the appropriate value for this, the third
+derivative is employed:
+\begin{align}
+  \ddddot{R} &= \frac{\partial R}{\partial u}\ddot{u} +
+               \frac{\partial^2 R}{\partial^2 u}\dot{u} +
+               \frac{\partial R}{\partial \lambda}\ddot{\lambda} +
+               \frac{\partial^2 R}{\partial^2 \lambda}\dot{\lambda} =
+               0\nonumber\\
+  &\text{Premultiplying by $z^T$ and substituting for
+    $\dot{u}$},\nonumber\\
+  &\dot{\lambda}^2[ \underbrace{\left(z^TR_{uu}zz\right)}_{a}\sigma^2 +
+    \underbrace{z^T\left(R_{uu}(zy+yz)+2R_{u\lambda}z\right)}_{b} \sigma + \underbrace{z^T\left(
+  R_{uu}yy + 2R_{u\lambda}y + R_{\lambda\lambda}\right)}_c ] =
+    0\nonumber\\
+  \implies &a\sigma^2 + b\sigma + c = 0\nonumber\\
+  \implies &\sigma_{1,2} = \frac{-b \pm \sqrt{b^2-4ac}}{2a}\qquad
+             a \neq 0\nonumber\\
+  &\sigma_{1,2} = 0,\, \infty\qquad a = 0
+  \label{eq:d3}
+\end{align}
+The final set of equations represent a quadratic equation with respect
+to $\sigma$. When $a=0$, it merely signifies that $\dot{u}_1 = y$
+(along the ``main'' branch), and $\dot{u}_2 = z$, along the
+``bifurcated'' branch.
+
+Using these different tangents as the initial tangent for the
+predictor allows the continuation step to converge to the different
+solutions for sufficiently small step-sizes (determined empirically
+through trial and error in the current study). It must be noted that
+the term $\partial^2 R/\partial u^2$ (denoted $R_{uu}$), is a third
+order tensor. Although it is analytically expressed in the
+formulation, the exact equations are not given in the appendix for
+terseness of the document.
+
+\subsubsection{Dynamical Stability Estimation}
+\label{sec:dynam-stab-estim}
+
+In some cases, looking just at the eigenvalues of the static Jacobian
+need not necessarily represent the stability of the system. Thus, the
+dynamical equations (\cref{eq:dyneom}) are linearized to understand
+the perturbation behavior about the equilibrium. Compared to the
+static stability analysis, the dynamic stability analysis allows for
+perturbations in the velocity components independent of the
+displacements. Representing the displacements with $u$, velocities
+with $\dot{u}$ and derivatives with subscripts, the state-space recast
+and linearization are represented as follows:
+\begin{align*}
+  \begin{Bmatrix} \dot{u}\\ \ddot{u} \end{Bmatrix} &= \begin{Bmatrix}
+    \dot{u}\\ -\mathbf{D}^{-1}R -
+    \mathbf{D}^{-1}\mathbf{C}\dot{u} \end{Bmatrix}\\
+  \begin{Bmatrix} \dot{\delta}_u\\
+    \dot{\delta}_{\dot{u}} \end{Bmatrix} &= \underbrace{\begin{bmatrix}
+      \mathbf{0} & \mathbf{I}\\
+      -\mathbf{D}^{-1}\mathbf{R_u}-{\mathbf{D}^{-1}}_uR\\
+      -{\mathbf{D}^{-1}}_u\mathbf{C}\dot{u} -
+      \mathbf{D}^{-1}{\mathbf{C}}_u\dot{u} &
+      -\mathbf{D}^{-1}{\mathbf{C}}_{\dot{u}}\dot{u} -
+      \mathbf{D}^{-1}\mathbf{C}
+    \end{bmatrix}}_{\mathbf{J}_{lin}} \begin{Bmatrix} \delta_u\\
+    \delta_{\dot{u}} \end{Bmatrix} 
+\end{align*}
+where $\delta_u$, \& $\delta_{\dot{u}}$ represent perturbations in
+displacements \& velocities; $R$ represents the static residual
+$F^{int}-F^{ext}$. The derivatives of the matrices with respect to the
+displacement vector are computed as third order tensors (assembled and
+stitched the same way as the rest of the finite element
+quantities). See \cref{sec:third-grad-calc} for some details on the
+third derivative calculations.
+
+The stability of a static equilibrium is assessed using the eigen
+values of the linearized Jacobian $\mathbf{J}_{lin}$ about the
+solution. If all the eigenvalues are in the left-half of the s-plane
+(negative real parts), the solution is said to be stable and if even
+one eigenvalue lies in the right-half (positive real part), the
+solution is said to be unstable. It must be noted that the stability
+of the linearized system corresponds to that of the original system
+only for hyperbolic equilibrium points. Thus, strictly, the
+linearization is \textbf{inconclusive} if the real parts of all the
+eigenvalues are exactly zero (see Hartman-Grobman Theorem).
+
+\pagebreak
+\section{Validation --- Linear Test Cases}
+\label{sec:valid-line-test}
+
+In order to validate the implementation, a set of three static cases
+are investigated. \Cref{fig:cbeam} illustrates the test cantilever
+under consideration. The three cases will be the tip-loaded response
+of the cantilever subject to transverse force ($F_Y$), moment ($M$),
+and axial force $F_X$ respectively. Non-conservative loading, i.e.,
+fixed direction loading is employed for the current studies. Apart
+from these static cases, the low amplitude internal force Jacobian and
+inertia matrices are used to conduct an eigen analysis to validate the
+formulation against analytical results.
+
+\begin{figure}[!h]
   \centering
-  % \setcounter{mytempcntr}{\value{figure}}
-  % \setcounter{figure}{3}
+  \includegraphics[width=0.4\linewidth]{FIGS/cantilever}
+  \caption{Cantilevered Beam Test Cases}
+  \label{fig:cbeam}
+\end{figure}
+
+A circular section with radius $R$ is assumed throughout unless
+otherwise stated. The physical properties used for this are,
+\begin{table}[!h]
   \centering
-  \begin{subfigure}[!t]{0.5\linewidth}
+  \begin{tabular}{cc}
+    \hline\hline
+    Property & Value\\\hline
+    $\rho$ & $7800 kgm^{-3}$\\
+    $E$ & $210\times 10^9Pa$\\
+    $\nu$ & $0.33$\\
+    $G$ & $E/2(1+\nu)$\\
+    $L$ & $1.0 m$\\
+    $R$ & $10^{-2}m$\\
+    $A$ & $\pi R^2$\\
+    $I_2$ & $\pi R^4/4$\\
+    $I_4$ & $\pi R^6/8$\\\hline\hline
+  \end{tabular}
+  \caption{Physical Properties}
+  \label{tab:physicalprops}
+\end{table}
+
+\subsection{A Note on Shear-Locking}
+\label{sec:note-shear-locking}
+
+Considering the case with $M, F_X=0$ and $F_Y\neq 0$, an issue
+that becomes apparent is what has been documented in the literature
+known as \textbf{shear locking}. The formulation requires a huge
+number of elements before it gives a sufficiently converged
+result. This is due to the fact that the section rotation angle
+$\theta$ and the transverse deflection $u_Y$ are assumed to vary
+linearly across an element independently. This leads to an
+inconsistency since the section rotation is closely related to the
+first derivative of the transverse deflection. This is rectified by
+making $\theta$ constant over each element whilst not killing
+$\theta'$. The following substitutions for the shape functions, that
+has been used with some success in the community, is employed here for
+the element quantities:
+\begin{align}
+  u_X(\xi) &= N_1(\xi)u_{X_1} + N_2(\xi)u_{X_2}\\
+  u_Y(\xi) &= N_1(\xi)u_{Y_1} + N_2(\xi)u_{Y_2}\\
+  \theta(\xi) &= \cancelto{\frac{1}{2}}{N_1(\xi)}\theta_1 +
+                \cancelto{\frac{1}{2}}{N_2(\xi)}\theta_2 =
+                \frac{\theta_1 + \theta_2}{2}\\
+  u_X'(\xi) &= \frac{u_{X_2}-u_{X_1}}{X_2-X_1}\\
+  u_Y'(\xi) &= \frac{u_{Y_2}-u_{Y_1}}{X_2-X_1}\\
+  \theta(\xi) &= \frac{\theta_2-\theta_1}{X_2-X_1}
+  \label{eq:sla}
+\end{align}
+While the first two are merely the linear interpolation on the
+element, the average value is used for the $\theta$ degree of
+freedom. The expressions for the derivatives, on the other hand, are
+not modified.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!h]{0.33\linewidth}
     \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/TRACKOBJ}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/LOCKINGADJUST_WITHOUT}
     \caption{}
-    \label{fig:trackobj}
   \end{subfigure}%
-  \begin{subfigure}[!t]{0.5\linewidth}
+  \begin{subfigure}[!h]{0.33\linewidth}
     \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/TRACK_3}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/LOCKINGADJUST_WITH}
     \caption{}
-    \label{fig:track3}
-  \end{subfigure}
-  
-  \begin{subfigure}[!t]{0.5\linewidth}
-    \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/TRACK_1}
-    \caption{}
-    \label{fig:track1}
   \end{subfigure}%
-  \begin{subfigure}[!t]{0.5\linewidth}
+  \begin{subfigure}[!h]{0.33\linewidth}
     \centering
-    \includegraphics[width=0.7\linewidth]{./FIGS/TRACK_2}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/LOCKINGADJUST_ERR}
     \caption{}
-    \label{fig:track2}
   \end{subfigure}
-  \caption{Tracking Control Results. (a) shows the response in the
-    generalized coordinates-space, (b) shows the control torque time
-    history, and (c-d) show the angular displacements and velocities
-    for $\theta_1$ \& $\theta_3$ (corresponding desired configurations
-    are plotted with dots). Dashed lines are simulations with the SPF;
-    continuous lines are simulations with the reduced system.}
-  \label{fig:tracking}
-  % \setcounter{figure}{\value{mytempcntr}}
-\end{figure*}
+  \caption{Effect of Shear-Locking Adjustment: (a) Without adjustment,
+  (b) With Adjustment, (c) RMS Error in response for both cases}
+  \label{fig:sla}
+\end{figure}
 
-\section{Conclusions}
-\label{sec:conclusions}
+Since the internal force only contains $\theta$ and the derivatives of
+the degrees of freedom, after this substitution, the stress/strain
+over each element will be constant. Thus the above substitution is the
+same as using a single-point quadrature for the calculations. In the
+interest of generality, however, the substitution method is followed
+for the current study.
 
-The procedure for developing a local reduced representation of a
-Differential Algebraic System in terms of an Ordinary Differential
-Equation system is presented in the context of Closed Kinematic
-Chains. A Singular Perturbation Formulation of the same system is also
-presented with results proving the accuracy of the formulation with
-respect to the original DAE. Stability of two controllers for the
-set-point regulation and tracking of such systems with fully known
-parameters are presented. The stability of the controller for the
-set-point case can be established with the exact model
-itself. However, a full-state model has to be introduced for the proof
-of the tracking controller. The presented SPF is used in the current
-work to demonstrate the same. A 5-bar CKC, based on the Rice Planar
-Delta Robot is used to conduct numerical simulations characterizing
-(numerically) the singularities and assessing set-point \& tracking
-control performances. In both the control cases, the developed
-controllers are observed to show satisfactory performance.
+\Cref{fig:sla} depicts the response against the Euler-Bernouilli
+reference solution for both cases. It can clearly be seen that the
+convergence of the adjusted formulation is much better.
 
+\subsection{Static validation test cases}
+\label{sec:stat-valid-test}
 
+For the three static validation test cases, the forcing amplitudes of
+$1N$, $1Nm$, and $1N$ are respectively used. \Cref{fig:staticval}
+presents the responses for each test case along with the corresponding
+low-amplitude analytical results for a 11-noded (10-element)
+simulation.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!h]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/VALIDATION_CASE1}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!h]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/VALIDATION_CASE2}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!h]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/VALIDATION_CASE3}
+    \caption{}
+  \end{subfigure}  
+  \caption{Static Validation Cases: (a) Case 1: $F_Y=1N$, (b) Case 2:
+    $M=1Nm$, (c) Case 3: $F_X=1N$}
+  \label{fig:staticval}
+\end{figure}
+
+\subsection{Low amplitude Modal Validation}
+\label{sec:low-amplitude-modal}
+
+In order to validate the inertial matrix, the stiffness matrix is
+formulated as the Jacobian when all the nodal degrees-of-freedom are
+set to 0, and the inertial matrix at the same condition is taken as
+the mass matrix. The mode-shapes and frequencies from the
+corresponding Eigen-analysis are presented in~\cref{fig:lowampeig}.
+
+\begin{figure}[!h]
+  \centering
+  \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/VALIDATION_DYNAMIC}
+  \caption{Low-amplitude Eigen-analysis}
+  \label{fig:lowampeig}
+\end{figure}
+
+The \textbf{longitudinal vibration modes} are set to happen at frequencies,
+\begin{equation}
+  \omega_r = (2r-1)\frac{\pi}{2}\sqrt{\frac{E}{\rho}}
+  \label{eq:longmodes}
+\end{equation}
+Here, the first mode comes to $\omega_{L_1}=8150.46 rad/s$. It can be
+seen that Mode 6 from the simulations has a frequency of $8152.78
+rad/s$ and corresponds to axial vibration of the structure.
+
+The \textbf{Transverse vibration modes} are set to occur at
+frequencies,
+\begin{equation}
+  \omega_n = {\left(\frac{\beta_n}{L}\right)}^2\sqrt{\frac{EI}{\rho
+      A}}\qquad \beta_n=1.875, 4.694, 7.855, \dots
+  \label{eq:transmodes}
+\end{equation}
+Analytically, the first three modes come out to be $91.21 rad/s$,
+$571.63 rad/s$, and $1600.75 rad/s$ respectively. This is verified in
+\cref{fig:lowampeig} since the first three modes there fall at $91.23
+rad/s$, $574.72 rad/s$, and $1626.53 rad/s$ respectively. Thus, the
+formulated matrices are valid, atleast for low amplitudes.
+
+Before the application of the boundary conditions, it was also
+verified that the system shows 3 distinct zero-frequency, or
+rigid-body modes.
+
+\pagebreak
+\section{Nonlinear Application Cases}
+\label{sec:nonl-appl-cases}
+
+For the nonlinear application cases, the step-size $\Delta s$ for
+continuation was adapted based on the number of iterations required
+for converging at each step. If a particular step took 5 iterations or
+less to converge, the step size was scaled up by a factor of $2.0$;
+and if it took more than 10 iterations, the step size was scaled by
+$0.5$.
+
+In order to have well-conditioned matrices for continuation, the
+forces were all represented as $|f|=10^6\lambda$, with $\lambda$ being
+the continuation parameter. The number $10^6$ was obtained by looking
+at the order of the diagonal terms of the internal force Jacobian
+about the trivial solution. A similar conditioning number was
+introduced for the in-homogeneous boundary conditions (see
+\cref{sec:boundary-conditions}). The influence of the numerical
+ill-conditioning was most apparent around transcritical bifurcations
+such as the ones found in~\cref{sec:snap-thro-behav}, where the
+algorithm fails to turn around the limit-points when the problem is
+ill-conditioned.
+
+\subsection{Follower vs Non-Follower Loads}
+\label{sec:follower-vs-non}
+
+In order to demonstrate the difference between the response of the
+system under follower and non-follower loads, the same cantilever is
+forced using a follower and a non-follower load cases with $F_1=0N$
+\& $F_2\neq 0$. The loads are applied as if concentrated on the node
+at the free end. \Cref{fig:followervsnonfollower} shows the system
+responses for different forcing amplitudes. It can be seen that the
+influence becomes very pronounced as the force amplitude increases. 
+
+\begin{figure}[!h]
+  \centering
+  \includegraphics[width=0.6\linewidth]{../SCRIPTS/FIGS/FOLLOWERVSNONFOLLOWER}
+  \caption{Difference between follower and non-follower load responses
+    in the transverse direction. Blue corresponds to the non-follower
+    case and red corresponds to the follower case.}
+  \label{fig:followervsnonfollower}
+\end{figure}
+
+\subsection{Buckling - Cantilever}
+\label{sec:buckling-cant}
+
+In order to investigate buckling, two cases are considered: with a
+non-follower load and with a follower load. The analytical solution
+for the Euler critical load for the cantilevered beam are,
+$$ P_{crit}^k = {(2k-1)}^2\frac{\pi^2 EI_2}{4L^2}\qquad k=1, 2,
+\dots $$
+This solution can be compared against the non-follower loading
+case. However, buckling under follower loading for a cantilevered beam
+takes a slightly different form. The first mode here is given by,
+$$ P_{f,crit}^1 = 20.1\frac{EI_2}{L^2} $$
+\begin{table}[!h]
+  \centering
+  \begin{tabular}{ccccc}
+    \hline\hline
+    Mode & Euler-Critical & EB-Follower & Non-Follower & Follower\\\hline
+    1 & 4,069.57 & 33,151.63 & 4,084.94 & 13,092.69 \\
+    2 & 36,626.16 & & 37,901.94 & 65,615.03 \\
+    3 & 101,739.34 & & 112,102.31 & 164,736.96 \\\hline\hline
+  \end{tabular}
+  \caption{Buckling Critical Loads (all loads in $N$)}
+  \label{tab:bucklcrit}
+\end{table}
+\Cref{tab:bucklcrit} tabulates the critical loads as calculated from
+the bisection searches conducted as above for both the cases. It can
+be seen that the Euler-Critical load matches the non-follower case
+pretty well but the Euler-Bernouilli prediction for the follower
+buckling is way higher.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}{0.5\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_RESP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_RESP}
+    \caption{}
+  \end{subfigure}%
+
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_1}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_2}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_3}
+    \caption{}
+  \end{subfigure}
+
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_1}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_2}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_3}
+    \caption{}
+  \end{subfigure}%  
+  \caption{Bifurcation Diagrams for the cantilevered beam in the (a)
+    non-follower and (b) follower loading cases. (c), (d), (e) depict
+    the mode shapes for the non-follower case, and (f), (g), (h)
+    depict the mode shapes for the follower case. In (a) \& (b), the
+    dashed vertical line represents the Euler Critical Load and the
+    green arrows represent the critical loads corresponding to loss of
+    stability through successive eigenvalues crossing the imaginary
+    axis.}
+  \label{fig:buckbif}
+\end{figure}
+
+\Cref{fig:buckbif} depicts the bifurcation diagrams for the two
+cases. The shapes are observed to be characteristically different for
+both the cases. Additionally, the green arrows denote the load levels
+where the ``backbone'' equilibrium branch loose dynamic stability
+through successive eigenvalues. In other words, the first green arrow
+corresponds to the load case where the first eigenvalue goes across
+to the right-half of the s-plane, and the second green arrow
+corresponds to the load case where the second eigenvalue crosses the
+imaginary axis. For the bifurcation tracking, however, only the static
+eigen values and vectors are employed.
+
+Arc-length continuation was found to be better suited for continuing
+the main branch while the Pseudo arc-length formulation was found to
+be more robust for tracing out the bifurcated branches. The actual
+mode-shape corresponding to each branch for different load amplitudes
+are also plotted. The shape of the solution in the main branch is not
+plotted since it is merely a trivial compression mode. Since the
+Euler-Bernouilli buckling load predictions for the follower loading
+case is much higher than the calculated buckling loads, usage of the
+former is not admissible for design since the beam would buckle for a
+much lower load.
+
+\subsection{Buckling - Simply Supported}
+\label{sec:buckl-simply-supp}
+
+The simply supported case presents a more interesting
+case. \Cref{fig:simpsupp} depicts the schematic for the buckling
+problem with the simply supported case. The boundary conditions are
+zero axial \& transverse displacements in the left end and zero
+transverse displacement at the right end.
+
+\begin{figure}[!h]
+  \centering
+  \includegraphics[width=0.4\linewidth]{FIGS/simpsupp}
+  \caption{The Simply Supported Beam}
+  \label{fig:simpsupp}
+\end{figure}
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}{0.5\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_RESP_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_RESP_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_1_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_2_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/NONFOLLOWER_BUCKLING_3_SIMPSUPP}
+    \caption{}
+  \end{subfigure}
+
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_1_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_2_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/FOLLOWER_BUCKLING_3_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%  
+  \caption{Bifurcation Diagrams for the simply supported beam in the
+    (a) non-follower and (b) follower loading cases. (c), (d), (e)
+    depict the mode shapes for the non-follower case, and (f), (g),
+    (h) depict the mode shapes for the follower case. In (a) \& (b)
+    the dashed vertical line and green arrows are drawn at
+    Euler-Critical load values and points of loss of dynamic stability
+    respectively.}
+  \label{fig:buckbif_simpsupp}
+\end{figure}
+The analytical solutions for the critical buckling loads (plotted in
+\cref{fig:buckbif_simpsupp}) are,
+$$ P_{crit}^k = k^2\frac{\pi^2EI_2}{L^2} \qquad k=1, 2, \dots $$
+\Cref{fig:buckbif_simpsupp} shows the results of the bifurcation
+analysis conducted for this case. Once again, the green arrows
+represent the loss of dynamic stability through successive
+eigenvalues. For the non-follower loading case,
+the response seems to be similar in sense to the response encountered
+for the previous case. However, the non-follower case led to a
+particular load level for each buckling mode beyond which the solver
+kept failing. This could be due to the fact that a static equilibrium
+along the same branch ceases to exist beyond that load level. The
+right ends of the responses for the follower load case seems to be
+more ``flat'' or with lesser plane angle $\theta$ than for the
+non-follower case. This could be understood by the additional
+stiffness to section rotation coming from the application of follower
+forces.
+
+In both of the above cases, the bifurcation points and the points of
+loss of dynamic stability happen at the same load level. It must be
+noted that the term ``loss of stability'' is used in a loose sense in
+that it denotes the point where the linearized analysis provides
+\emph{sufficient} conditions for the loss of stability along atleast
+one direction in the state-space by making the equilibrium point
+hyperbolic in that direction. This is to say that the actual loss of
+stability of the nonlinear system could have happened before, but we
+can say for certain that the solution is not stable afterwards.
+
+\pagebreak
+\subsection{Buckling - Simply Supported Beam with Inhomogeneous Tip
+  BC}
+\label{sec:buckl-simply-supp-1}
+
+For the current case, the simply supported beam in~\cref{fig:simpsupp}
+is employed but with ``no forcing''. The input is specified based on
+the $x$ deflection of the tip node of the
+beam. \Cref{fig:tipdefcsimpsuppbuck} depicts the bifurcation diagram
+for this case with the four modes under investigation. Pitchfork
+bifurcations similar to the previous case are observed here too.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!h]{0.5\linewidth}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/IHBC_BUCKLING_RESP_SIMPSUPP}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!h]{0.5\linewidth}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/IHBC_BUCKLING_MDS_SIMPSUPP}
+    \caption{}
+  \end{subfigure}
+  \caption{Buckling Behavior of the Simply Supported Beam under Tip
+    deflection control: (a) Bifurcation Diagram; (b) Buckling Modes at
+  maximal final X-deflection (blue branches in (a)). The dasahed
+  vertical lines in (a) indicate the load levels where snap-through
+  analysis is performed (in \cref{sec:snap-thro-behav}).}
+  \label{fig:tipdefcsimpsuppbuck}
+\end{figure}
+
+The main purpose of considering this case is to have a systematic
+definition for the definition of the pre-stressed initial
+configuration for the snap-through analysis. The odd modes are
+``symmetric'' while the even ones are ``unsymmetric'' about the
+mid-point of the beam. This distinction is important to predict the
+nature of the snap-through response.
+
+\subsection{Snap-Through Behavior of a Buckled Simply-Supported Beam}
+\label{sec:snap-thro-behav}
+
+For the snap-through analysis, the beam is first buckled to the first
+mode under an in-homogenous boundary condition (see
+\cref{sec:buckl-simply-supp-1}). Thus, whatever be the response, the
+axial and transverse deflections of the two ends of the beam are fixed
+--- the left one to the origin, and the right one to the boundary
+condition. The only ``active'' degree of freedom for the ends are the
+sectional rotations. Following this, a transverse load in the
+$-\hat{y}$ direction is applied at the node in the center. Since an
+11-noded model is used for these analyses, this transverse loading
+corresponds to node 6. The response of the structure, defined by the
+nodal $y-deflection$ and the nodal section rotation $\theta$, are
+investigated for the bifurcation study. Four different tip deflection
+boundary conditions are used, each corresponding to cases with the
+existence of progressively more number of buckling modes.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!t]{0.45\linewidth}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DISP_896}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.45\linewidth}
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DEFN_896}
+    \caption{}
+  \end{subfigure}%
+  \caption{Snap-through at Buckling Level 1 ($\delta_{crit}^1 <
+    \delta_x < \delta_{crit}^2$. (a) Load-Displacement diagram; (b)
+    Deflection profiles. In (b) the dotted continous line represents
+    the deflection at zero snap-through load, while the dotted
+    dashed-line represents the deflection before the limit point.}
+  \label{fig:buck1}
+\end{figure}
+
+\Cref{fig:buck1} represents the snap-through behavior when the tip
+displacement $\delta_x=896\mu m$. This is between the first and the
+second critical displacements. The existence of just a single buckling
+mode is reflected as the presence of the classical ``snap-through''
+behavior, in the form of the existence of two limit-point (or
+transcritical) bifurcation points in the response. No stable
+equilibrium exists in the branch between these points, and they are
+also the critical loads when the system snaps through to a shape that
+is buckled in the opposite direction.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DISP_2089}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DEFN_2089}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth, trim={2.1cm 1.1cm 2.1cm 2.1cm},
+    clip]{../SCRIPTS/FIGS/SNAPTHROUGH_3D_2089}
+    \caption{}
+  \end{subfigure}
+  \caption{Snap-through at Buckling Level 2 ($\delta_{crit}^2 <
+    \delta_x < \delta_{crit}^3$. (a) Load-Displacement diagram; (b)
+    Deflection profiles; and (c) 3D Load-Displacement-Rotation
+    diagram. In (b) the dotted continous line represents
+    the deflection at zero snap-through load; the dotted dashed-line
+    represents the deflection before the limit point; the dotted blue \&
+    red lines show the deflection along the two bifurcated branches.} 
+  \label{fig:buck2}
+\end{figure}
+
+\Cref{fig:buck2} shows the snap-through behavior when the beam is
+initially buckled beyond its second (unsymmetric) critical mode
+($\delta_x=2089\mu m$). Now that an unsymmetric mode exists, the
+system loses stability before the transcritical point, wherein an
+unsymmetric transition between the snap-through states becomes more
+stable. As can be seen from \cref{fig:buck2}(b), two unsymmetric modes
+are present for each load level, corresponding to the symmetric parts
+of the pitchfork bifurcation. Since this did not happen for $\delta_x
+< \delta_{crit}^2$, it is surmised that such a mode of snap-through
+can exist only when the corresponding buckling mode exists
+``inherently'' in the structure.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DISP_3889}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DEFN_3889}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth, trim={2.1cm 1.1cm 2.1cm 2.1cm},
+    clip]{../SCRIPTS/FIGS/SNAPTHROUGH_3D_3889}
+    \caption{}
+  \end{subfigure}
+  \caption{Snap-through at Buckling Level 3 ($\delta_{crit}^3 <
+    \delta_x < \delta_{crit}^4$. (a) Load-Displacement diagram; (b)
+    Deflection profiles; and (c) 3D Load-Displacement-Rotation
+    diagram. In (b) the dotted continous line represents
+    the deflection at zero snap-through load; the dotted dashed-line
+    represents the deflection beyond the second limit point; the
+    dotted blue \& red lines show the deflection along the two
+    pitchfork branches.}
+  \label{fig:buck3}
+\end{figure}
+
+\Cref{fig:buck3} shows the response of the system to the snap-through
+loading when it is initially prestressed beyond the second critical
+($\delta_x = 3889\mu m$). In terms of bifurcations, the system has two
+additional turning points (transcritical bifurcations), while the
+number of symmetric bifurcations stays the same. It is surmised that
+the added existence of the symmetric buckling mode (mode 3) in the
+system does not let the beam take other unsymmetric paths, but
+introduces additional ``snap-through'' points by introducing
+additional symmetric equilibria for certain load cases.
+
+\begin{figure}[!h]
+  \centering
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DISP_7319}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering    
+    \includegraphics[width=\linewidth]{../SCRIPTS/FIGS/SNAPTHROUGH_DEFN_7319}
+    \caption{}
+  \end{subfigure}%
+  \begin{subfigure}[!t]{0.33\linewidth}
+    \centering
+    \includegraphics[width=\linewidth, trim={2.1cm 1.1cm 2.1cm 2.1cm},
+    clip]{../SCRIPTS/FIGS/SNAPTHROUGH_3D_7319}
+    \caption{}
+  \end{subfigure}
+  \caption{Snap-through at Buckling Level 4 ($\delta_{crit}^4 <
+    \delta_x < \delta_{crit}^5$. (a) Load-Displacement diagram; (b)
+    Deflection profiles; and (c) 3D Load-Displacement-Rotation
+    diagram. In (b) the dotted continous line represents
+    the deflection at zero snap-through load; the dotted dashed-line
+    represents the deflection beyond the second limit point; the
+    dotted blue \& red lines show the deflection along the first
+    pitchfork pair; the dotted green \& yellow lines show the
+    deflection along the second pitchfork pair.}
+  \label{fig:buck4}
+\end{figure}
+
+\Cref{fig:buck4} shows the snap-through response of the system
+prestressed initially beyond its fourth critical axial deflection
+($\delta_x=7319\mu m$). Since the fourth buckling mode is unsymmetric,
+this introduces an additional pitchfork bifurcation, while keeping the
+number of transcritical points same (4). \Cref{fig:buck4}(b) depicts
+all the different unsymmetric modes --- it may be observed that these
+always occur in pairs.
+
+\section{Discussions and Conclusions}
+\label{sec:disc-concl}
+
+A generic planar beam element was implemented in \texttt{Python} in
+such a manner that the only assumption is that plane sections remain
+planar. The Timoshenko beam formulation was employed, which resulted
+in shear-locking effects because of fully decoupling the section
+rotation and the transverse deflection. This effect was countered by
+altering the interpolation of the derivatives of the section angles by
+keeping them constant over the section (field-consistency
+approach). This thus makes the developed elements the so-called
+$C^{0}$ shear elements. Additionally, follower \& non-follower forces,
+static homogeneous \& in-homogeneous boundary conditions, and matrices
+necessary for full-nonlinear as well as linearized dynamic analyses
+were formulated and implemented. For solving the systems, a Newton's
+algorithm was implemented for sparse matrices (\texttt{scipy}'s
+optimization
+toolbox~\footnote{\url{https://docs.scipy.org/doc/scipy/reference/optimize.html}}
+does not support sparse matrices for full Jacobian solvers yet);
+arc-length continuation was implemented with the ability to switch
+between two different arc-length constraints; the second order Hessian
+tensor of the quantities involved were implemented following
+analytical calculations for conducting bifurcation analyses and
+path-following. Appropriate conditioning coefficients were introduced
+in some of the above in order to keep the involved matrices
+numerically well-conditioned. It was found to be a little easier to
+have the orthogonal constraint for the continuation in most cases, but
+the $\Delta s$ required for this was found to be much larger than the
+corresponding step-size in the conventional arc-length constraint for
+what seemed to be the same increment on the response curve.
+
+Following some validation runs against linear test cases with
+analytical solutions, the code was used to perform buckling and
+snap-through response tracing for the cantilevered and simply
+supported configurations. Pitchfork bifurcations were successfully
+determined (indirectly) by estimating and monitoring the eigenvalues
+of the Jacobian matrix at each point along the response
+trajectory. The Hessian tensors were used to classify the bifurcations
+and determine the tangent along each branch. It must be noted that all
+of the bifurcations encountered in the current study are either
+transcritical (in the form of limit/turning points) or pitchfork
+bifurcations, which are both examples of ``simple bifurcations'', and
+thus the Hessian tensor was sufficient to determine the tangent
+directions. For more complicated bifurcations, higher derivatives will
+be necessary.
+
+\pagebreak
 \appendix{}
+\section{Guide to Submitted Python Scripts}
+\label{sec:guide-subm-pyth}
 
-\section{Equations of Motion}
-\label{sec:equations-motion}
+The following is a guide to the different Python scripts in the
+submission.
 
-The individual terms in the unconstrained form of the 5-bar CKC
-dynamical equations of motion are given as
+\paragraph{Scripts with Routine Definitions}
+\begin{description}
+\item[STATICS.py] This contains the major routines for the
+  implementation: element shape functions, integration routines,
+  element quantities, static residual, etc.
+\item[DYNAMICS.py] This contains the definitions of the routines which
+  were used for the dynamical analyses in the current study. Most of
+  these routines require the routines in \texttt{STATICS.py}. The
+  routines here include the dynamic matrices \& their derivative
+  tensors, and linearization routines.
+\item[SOLVERS.py] Written pretty much independent of the rest of the
+  scripts, this contains the definitions for the solution routines,
+  including the sparse Newton solver, continuation routines (which
+  rely on sparse Jacobians), and singular point tangent estimation
+  routines.
+\end{description}
+
+\paragraph{Scripts intended for checking the code}
+\begin{description}
+\item[check.py] This contains checks for the various functions and
+  their derivatives, comparing numerical differentiation to the
+  analytical estimates. Apart from this, this also contains some
+  initial test cases for most of the problems considered in the
+  study.
+\item[continuation.py] This contains a simple beam bending case for
+  checking the continuation implementation. (\emph{this may not work
+    with the final form of the code}).
+\item[checkcontin.py] This investigates the influence of numerical
+  conditioning in the continuation of solutions beyond turning
+  points by using a parabola to test the code.
+\end{description}
+
+\paragraph{Scripts with simulations feeding into the final report}
+\begin{description}
+\item[locking.py] This was the file used for generating the plots in
+  \cref{sec:note-shear-locking}, assessing the influence of
+  shear-locking.
+\item[validate.py] This has the different (axial, transverse \&
+  moment) deflection cases for the validations in
+  \cref{sec:stat-valid-test}.
+\item[linmodes.py] This conducts the low-amplitude modal analysis
+  for \cref{sec:low-amplitude-modal}.
+\item[follower.py] This conducts the comparison between follower and
+  non-follower loading cases in~\cref{sec:follower-vs-non}.
+\item[buckling\_follower.py] Conducts the buckling path following and
+  bifurcation analysis for the cantilevered beam under follower
+  load. Dynamic stability exponents are also estimated here (results
+  in \cref{sec:buckling-cant}).
+\item[buckling\_nonfollower.py] Conducts the buckling path following and
+  bifurcation analysis for the cantilevered beam under non-follower
+  load. Dynamic stability exponents are also estimated here (results
+  in \cref{sec:buckling-cant}).
+\item[simpsupp\_buckling.py] This conducts the follower and
+  non-follower tip load buckling analyses for the simply supported
+  beam (results in \cref{sec:buckl-simply-supp}).
+\item[simpsupp\_inhomogeneousbc.py] Considers the buckling behavior of
+  the simply supported beam under tip deflection boundary condition
+  (results in \cref{sec:buckl-simply-supp-1}).
+\item[simpsupp\_snapthrough.py] Contains the scripts for the
+  snap-through analyses conducted for \cref{sec:snap-thro-behav}.
+\end{description}
+
+
+
+\section{Relevant functions and Derivatives}
+\label{sec:relv-funct-deriv}
+
+\begin{itemize}
+\item{} Function $\epsilon_0$:
+  \begin{align}
+    \epsilon_0 &= \frac{1}{2}({u_X'}^2 + {u_Y'}^2 + 2u_X')\nonumber\\
+    \frac{\partial
+    \epsilon_0}{\partial \begin{Bmatrix}d^e\end{Bmatrix}} &=
+                                                            \frac{1}{X_2-X_1} \begin{Bmatrix} 
+                                                              -(1+u_X')\\
+                                                              -(u_Y')\\
+                                                              0\\
+                                                              (1+u_X')\\
+                                                              (u_Y')\end{Bmatrix}\nonumber\\
+    \left[\frac{\partial^2 \epsilon_0}{\partial {d^e}^2}\right] &=
+                                                                  \frac{1}{{(X_2-X_2)}^2}
+                                                                  \left(\begin{bmatrix}
+                                                                      1
+                                                                      &
+                                                                      -1\\
+                                                                      -1
+                                                                      &
+                                                                      1 \end{bmatrix}
+                                                                        \otimes
+                                                                        \begin{bmatrix}
+                                                                          1&0&0\\
+                                                                          0&1&0\\
+                                                                          0&0&0
+                                                                        \end{bmatrix}\right)
+    \label{eq:e0}
+  \end{align}
+  with $\otimes$ denoting the Kronecker product between matrices.
+\item Function $\gamma_0$:
+  \begin{align}
+    \gamma_0 &= -(1+u_X')\sin\theta + u_Y'\cos\theta\nonumber\\
+    \dfrac{\partial \gamma_0}{\partial \begin{Bmatrix} d^e \end{Bmatrix}} &= \begin{Bmatrix}
+      \dfrac{\sin\theta}{X_2-X_1}\\\\ -\dfrac{\cos\theta}{X_2-X_1}\\\\
+      -((1+u_X')\cos\theta + u_Y'\sin\theta)N_1\\\\
+      -\dfrac{\sin\theta}{X_2-X_1}\\\\ \dfrac{\cos\theta}{X_2-X_1}\\\\
+      -((1+u_X')\cos\theta +
+      u_Y'\sin\theta)N_2\\\\\end{Bmatrix}\nonumber\\
+\left[\frac{\partial^2 \gamma_0}{\partial {d^e}^2}\right] &= \begin{bmatrix}
+      0 & 0 & \frac{N_1}{X_2-X_1}\cos\theta & 0 & 0 &
+      \frac{N_2}{X_2-X_1}\cos\theta\\
+      0 & 0 & \frac{N_1}{X_2-X_1}\sin\theta & 0 & 0 &
+      \frac{N_2}{X_2-X_1}\sin\theta\\
+      \frac{N_1}{X_2-X_1}\cos\theta & \frac{N_1}{X_2-X_1}\sin\theta &
+      f_1 & -\frac{N_1}{X_2-X_1}\cos\theta &
+      -\frac{N_1}{X_2-X_1}\sin\theta & f_2\\
+      0 & 0 & -\frac{N_1}{X_2-X_1}\cos\theta & 0 & 0 &
+      -\frac{N_2}{X_2-X_1}\cos\theta\\
+      0 & 0 & -\frac{N_1}{X_2-X_1}\sin\theta & 0 & 0 &
+      -\frac{N_2}{X_2-X_1}\sin\theta\\
+      \frac{N_2}{X_2-X_1}\cos\theta & \frac{N_2}{X_2-X_1}\sin\theta &
+      f_2 & -\frac{N_2}{X_2-X_1}\cos\theta &
+      -\frac{N_2}{X_2-X_1}\sin\theta & f_3
+    \end{bmatrix}    
+    \label{eq:g0}
+  \end{align}
+  Where the functions $f_i's$ are,
+  \begin{align}
+    f_1 &= ((1+u_X')\sin\theta - u_Y'\cos\theta){N_1}^2\nonumber\\
+    f_2 &= ((1+u_X')\sin\theta - u_Y'\cos\theta)N_1N_2\nonumber\\
+    f_3 &= ((1+u_X')\sin\theta - u_Y'\cos\theta){N_2}^2\nonumber\\
+    \label{eq:g0e}    
+  \end{align}
+\item Function $\epsilon_1$:
+  \begin{align}
+    \epsilon_1 &= -\theta'\left[(1+u_X')\cos\theta +
+                 u_Y'\sin\theta\right]\nonumber\\
+    \frac{\partial \epsilon_1}{\partial \{d^e\}} &= \begin{Bmatrix}
+      \frac{\theta'\cos\theta}{X_2-X_1}\\
+      \frac{\theta'\sin\theta}{X_2-X_1}\\
+      \theta' \left[(1+u_X')\sin\theta - u_Y'\cos\theta\right]N_1 +
+      \frac{\left[(1+u_X')\cos\theta +
+          u_Y'\sin\theta\right]}{X_2-X_1}\\
+      -\frac{\theta'\cos\theta}{X_2-X_1}\\
+      -\frac{\theta'\sin\theta}{X_2-X_1}\\
+      \theta' \left[(1+u_X')\sin\theta - u_Y'\cos\theta\right]N_2 -
+      \frac{\left[(1+u_X')\cos\theta +
+          u_Y'\sin\theta\right]}{X_2-X_1}
+    \end{Bmatrix}\nonumber\\
+    \frac{\partial^2 \epsilon_1}{\partial {d^e}^2} &= \begin{bmatrix}
+      0 & 0 & g_1 & 0 & 0 & g_2\\
+      0 & 0 & g_3 & 0 & 0 & g_4\\
+      g_1 & g_3 & g_5 & -g_1 & -g_3 & g_6\\
+      0 & 0 & -g_1 & 0 & 0 & -g_2\\
+      0 & 0 & -g_3 & 0 & 0 & -g_4\\
+      g_2 & g_4 & g_6 & -g_2 & -g_4 & g_7
+    \end{bmatrix}
+    \label{eq:e1}
+  \end{align}
+  The functons $g_i's$ are,
+  \begin{align}
+    g_1 &= -\frac{\cos\theta}{\Delta X^2} -
+          \frac{\theta'\sin\theta}{\Delta X}N_1\nonumber\\
+    g_2 &= \frac{\cos\theta}{\Delta X^2} -
+          \frac{\theta'\sin\theta}{\Delta X}N_2\nonumber\\
+    g_3 &= -\frac{\sin\theta}{\Delta X^2} +
+          \frac{\theta'\cos\theta}{\Delta X}N_1\nonumber\\
+    g_4 &= \frac{\sin\theta}{\Delta X^2} +
+          \frac{\theta'\cos\theta}{\Delta X}N_2\nonumber\\
+    g_5 &= \theta'\left[(1+u_X')\cos\theta +
+          u_Y'\sin\theta\right]{N_1}^2 -
+          2\frac{N_1}{\Delta X}\left[(1+u_X')\sin\theta -
+          u_Y'\cos\theta\right] \nonumber\\
+    g_6 &= \theta'\left[(1+u_X')\cos\theta +
+          u_Y'\sin\theta\right]N_1N_2 -
+          \frac{N_1-N_2}{\Delta X}\left[(1+u_X')\sin\theta -
+          u_Y'\cos\theta\right] \nonumber\\
+    g_7 &= \theta'\left[(1+u_X')\cos\theta +
+          u_Y'\sin\theta\right]{N_2}^2 +
+          2\frac{N_2}{\Delta X}\left[(1+u_X')\sin\theta -
+          u_Y'\cos\theta\right] \nonumber\\
+    \label{eq:e1fs}
+  \end{align}
+\item Function $\epsilon_2$:
+  \begin{align}
+    \epsilon_2 &= \frac{1}{2}{\theta'}^2\nonumber\\
+    \frac{\partial \epsilon_2}{\partial \{d^e\}} &= \begin{Bmatrix}
+      0\\ 0\\ -\frac{\theta'}{\Delta X}\\ 0\\ 0\\
+      \frac{\theta'}{\Delta X} \end{Bmatrix}\nonumber\\
+    \left[\frac{\partial^2 \epsilon_2}{\partial \{d^e\}^2}\right]
+               &= \begin{bmatrix}
+                 0&0&0&0&0&0\\
+                 0&0&0&0&0&0\\
+                 0&0&\frac{1}{\Delta X^2}&0&0&-\frac{1}{\Delta X^2}\\
+                 0&0&0&0&0&0\\
+                 0&0&0&0&0&0\\
+                 0&0&-\frac{1}{\Delta X^2}&0&0&\frac{1}{\Delta X^2}\\
+               \end{bmatrix}
+    \label{eq:ep2}
+  \end{align}
+\end{itemize}
+
+\section{Finite Element Equations of Motion}
+\label{sec:finite-elem-equat}
+
+For the two-noded finite element scheme, the equations of motion is
+given by,
+\begin{equation}
+  \bm{D}(\{d\})\{\ddot{d}\} + \bm{C}(\{d\}, \{\dot{d}\})\{\dot{d}\} +
+  F^{int}(\{d\}) = F^{ext}
+  \label{eq:eom}
+\end{equation}
+The matrices $\bm{D}$ \& $\bm{C}$, referred to as the intertia matrix
+and the Chrostoffel symbols matrix, come from the kinetic energy
+density. After defining the shape functions as $N_1$ \& $N_2$,
 \begin{align}
-  \bm{D}'(q') &= \begin{bmatrix} d_{11} & d_{12} & 0 & 0\\
-    d_{12} & d_{22} & 0 & 0\\ 0 & 0 & d_{33} & d_{34}\\
-    0 & 0 & d_{34} & d_{44} \end{bmatrix}\nonumber\\
-  \bm{C}'(q') &= \begin{bmatrix} c_{11} & c_{12} & 0 & 0\\
-    c_{21} & 0 & 0 & 0\\ 0 & 0 & c_{33} & c_{34}\\
-    0 & 0 & c_{43} & 0 \end{bmatrix}\nonumber\\
-  H'(q') &= \begin{bmatrix} h_1\\ h_2\\ h_3\\ h_4 \end{bmatrix}.
-  \label{eq:eomform}
+  \frac{L_e}{2}\mathcal{T} &= \frac{1}{4}L_e\left(\rho A(\dot{u_X}^2 +
+                             \dot{u_Y}^2) + \rho I\dot{\theta}^2\right)\nonumber\\
+  &= \frac{L_e}{4} \begin{bmatrix}\dot{u_X} & \dot{u_Y} &
+    \dot{\theta} \end{bmatrix} \begin{bmatrix} \rho A &0 &0\\ 0& \rho
+    A&0\\ 0&0& \rho I_2 \end{bmatrix} \begin{bmatrix}\dot{u_X}\\ \dot{u_Y}\\
+    \dot{\theta} \end{bmatrix}\nonumber\\
+                           &= \frac{L_e}{4} {\{\dot{d^e} \}}^T
+                             \underbrace{{\left[ [N_1\, N_2]
+                             \otimes \begin{bmatrix} 1&0&0\\ 0&1&0\\
+                               0&0&1 \end{bmatrix}\right]}^T \begin{bmatrix}
+                           \rho A &0 &0\\ 0& \rho A&0\\ 0&0& \rho
+                           I_2 \end{bmatrix} \left[ [N_1\, N_2]
+                                                             \otimes \begin{bmatrix}
+                                                               1&0&0\\
+                                                               0&1&0\\
+                                                               0&0&1 \end{bmatrix}\right]}_{\bar{\bm{D}}}
+                                                                    \{
+                                                                    \dot{d^e}
+                                                                    \}
+                                                                    \nonumber\\
+  \bm{D} &= \int\limits_{-1}^1 \bar{\bm{D}}\frac{L_e}{2}
+           d\xi\nonumber\\
+  \bm{C} &= \frac{1}{4}\int\limits_{-1}^1\bm{D}\dot{L_e}d\xi =
+           \frac{1}{4}\int\limits_{-1}^1 \left({\frac{\partial
+           L_e}{\partial \{d^e\}}}^T\{\dot{d^e}\}\right) \bm{D} d\xi
+  \label{eq:kedensred}
 \end{align}
-The individual terms of the inertia matrix are
+The interfnal force vector $\{F^{int}\}$ is given by the partial
+derivative of the strain energy term with $\{ d^e \}$.
 \begin{align}
-  d_{11} &= I_1+I_2+m_1c_1^2 + m_2(l_1^2 + c_2^2 +
-           2l_1c_2\cos\theta_2)\nonumber\\
-  d_{12} &= I_2+m_2c_2^2+m_2l_1c_2\cos\theta_2\nonumber\\
-  d_{22} &= I_2+m_2c_2^2\nonumber\\
-  d_{33} &= I_3+I_4+m_3c_3^2 + m_4(l_3^2 + c_4^2 +
-           2l_3c_4\cos\theta_4)\nonumber\\
-  d_{34} &= I_4+m_4c_4^2+m_4l_3c_4\cos\theta_4\nonumber\\
-  d_{44} &= I_4+m_4c_4^2  
-  \label{eq:inertterms}
+  F^{int} &= \frac{1}{2}\int\limits_{-1}^1 \mathcal{U}\frac{\partial
+            L_e}{\partial \{d^e\}}d\xi +
+            \frac{1}{2}\int\limits_{-1}^1
+            \frac{\partial\mathcal{U}}{\partial \{d^e\}}
+            L_ed\xi\nonumber\\
+  J^{int} &= \frac{1}{2}\int\limits_{-1}^1 \mathcal{U}\frac{\partial^2
+            L_e}{\partial \{d^e\}^2}d\xi +
+            \frac{1}{2}\left[\int\limits_{-1}^1
+            \frac{\partial\mathcal{U}}{\partial \{d^e\}}
+            {\frac{\partial L_e}{\partial \{d^e\}}}^T +
+            \frac{\partial L_e}{\partial \{d^e\}}
+            {\frac{\partial\mathcal{U}}{\partial \{d^e\}}}^T d\xi
+            \right] + \frac{1}{2}\int\limits_{-1}^1 \frac{\partial^2
+            \mathcal{U}}{\partial \{d^e\}^2}L_ed\xi
+  \label{eq:fint}
 \end{align}
-Correspondingly, the Christoffel symbols are
+
+The corresponding derivative quantities are,
 \begin{align}
-  c_{11} &= -2m_2l_1c_2\dot{\theta_2}\sin q_2\nonumber\\
-  c_{12} &= -m_2l_1c_2\dot{\theta_2}^2\sin\theta_2\nonumber\\
-  c_{21} &= m_2l_1c_2\dot{\theta_1}\sin\theta_2\nonumber\\
-  c_{33} &= -2m_4l_3c_4\dot{\theta_4}\sin q_4\nonumber\\
-  c_{34} &= -m_4l_3c_4\dot{\theta_4}^2\sin\theta_4\nonumber\\
-  c_{43} &= m_4l_3c_4\dot{\theta_3}\sin\theta_4.
-  \label{eq:csymbterms}
+  \frac{\partial \mathcal{U}}{\partial \{d^e\}} &= (EA\epsilon_0 +
+                                                  EI_2\epsilon_2)            
+                                                  \frac{\partial
+                                                  \epsilon_0}{\partial
+                                                  \{d^e\}} +
+                                                  (GA\gamma_0)
+                                                  \frac{\partial
+                                                  \gamma_0}{\partial
+                                                  \{d^e\}} +
+                                                  (EI_2\epsilon_1)
+                                                  \frac{\partial
+                                                  \epsilon_1}{\partial
+                                                  \{d^e\}}
+                                                + (EI_2\epsilon_0
+                                                  +EI_4\epsilon_2)
+                                                  \frac{\partial
+                                                  \epsilon_2}
+                                                  {\partial
+                                                  \{d^e\}}\nonumber\\
+  \frac{\partial^2 \mathcal{U}}{\partial {\{d^e\}}^2} &= \Biggl((EA\epsilon_0 +
+                                                  EI_2\epsilon_2) 
+                                                  \frac{\partial^2
+                                                  \epsilon_0}{\partial
+                                                  \{d^e\}^2} +
+                                                  (GA\gamma_0)
+                                                  \frac{\partial^2
+                                                  \gamma_0}{\partial
+                                                  \{d^e\}^2} +
+                                                  (EI_2\epsilon_1)
+                                                  \frac{\partial^2
+                                                  \epsilon_1}{\partial
+                                                  \{d^e\}^2}
+                                                + (EI_2\epsilon_0
+                                                  +EI_4\epsilon_2)
+                                                  \frac{\partial^2
+                                                  \epsilon_2}
+                                                  {\partial
+                                                        \{d^e\}^2}\Biggr)\nonumber\\
+                                                &+ \Biggl((EA\frac{\partial \epsilon_0}{\partial \{d^e\}} +
+                                                  EI_2\frac{\partial \epsilon_2}{\partial \{d^e\}})            
+                                                  \frac{\partial
+                                                  \epsilon_0}{\partial
+                                                  \{d^e\}} +
+                                                  (GA\frac{\partial \gamma_0}{\partial \{d^e\}})
+                                                  \frac{\partial
+                                                  \gamma_0}{\partial
+                                                  \{d^e\}} +
+                                                  (EI_2\frac{\partial \epsilon_1}{\partial \{d^e\}})
+                                                  \frac{\partial
+                                                  \epsilon_1}{\partial
+                                                  \{d^e\}}
+                                                + (EI_2\frac{\partial \epsilon_0}{\partial \{d^e\}}
+                                                  +EI_4\frac{\partial \epsilon_2}{\partial \{d^e\}})
+                                                  \frac{\partial
+                                                  \epsilon_2}
+                                                  {\partial
+                                                  \{ d^e \}}\Biggr)\nonumber\\
+  \label{eq:udiffs}
 \end{align}
-The nonlinear forcing/gravity vector terms are
-\begin{align}
-  h_1 &= (m_1c_1+m_2l_1)g\cos\theta_1 +
-        (m_2c_2)g\cos(\theta_1+\theta_2)\nonumber\\
-  h_2 &= (m_2c_2)g\cos(\theta_1+\theta_2)\nonumber\\
-  h_3 &= (m_3c_3+m_4l_3)g\cos\theta_3 +
-        (m_4c_4)g\cos(\theta_3+\theta_4)\nonumber\\
-  h_4 &= (m_4c_4)g\cos(\theta_3+\theta_4).
-  \label{eq:gravterms}
-\end{align}
-The loop-closure constraint equations $\phi(q')$ are
-\begin{align}
-  l_1\cos\theta_1 + l_2\cos(\theta_1+\theta_2) -
-  l_3\cos(\theta_3+\theta_4&)\nonumber\\
-  - l_4\cos\theta_4 - c &= 0\nonumber\\
-  l_1\sin\theta_1 + l_2\sin(\theta_1+\theta_2) -
-  l_3\sin(\theta_3+\theta_4&)\nonumber\\
-  - l_4\sin\theta_4 &= 0.
-  \label{eq:lcconst}
-\end{align}
-  
-\bibliographystyle{IEEEtran}
-\bibliography{IEEEabrv,Refs}
+In the above notation, if two vectors $A$ and $B$ are given as $AB$,
+it denotes the product matrix $AB^T$.
+
+\section{Third gradient Calculations}
+\label{sec:third-grad-calc}
+
+For the functions $\epsilon_0$, $\gamma_0$, $\epsilon_1$, and
+$\epsilon_2$, the third derivatives are expressed analytically by
+expanding on the forms given earlier. The exact expressions are not
+provided here. The gradients of the matrix quantities are computed in
+tensorial form like the example below:
+
+\begin{align*}
+  \mathbf{D}_{il}\mathbf{D}^{-1}_{lj} = \delta_{ij} &\implies
+                                                      \mathbf{D}_{il,k}\mathbf{D}^{-1}_{lj}
+                                                      +
+                                                      \mathbf{D}_{il}\mathbf{D}^{-1}_{lj,k}
+                                                      =
+                                                      \mathbf{0}_{ijk}\\
+  \mathbf{D}_{il}\mathbf{D}^{-1}_{lj,k} =
+  -\mathbf{D}_{il,k}\mathbf{D}^{-1}_{lj} &\implies
+                                           \mathbf{D}^{-1}_{mi}\mathbf{D}_{il}\mathbf{D}^{-1}_{lj,k}
+                                           =
+                                           -\mathbf{D}^{-1}_{mi}\mathbf{D}_{il,k}\mathbf{D}^{-1}_{lj}\\
+  \implies \mathbf{D}^{-1}_{mj,k} &= -\mathbf{D}^{-1}_{mi}\mathbf{D}_{il,k}\mathbf{D}^{-1}_{lj}
+\end{align*}
+The \texttt{einsum} method in \texttt{numpy} is employed to compute
+the tensor
+products~\footnote{\url{https://docs.scipy.org/doc/numpy/reference/generated/numpy.einsum.html}}. 
+
 \end{document}
 %%% Local Variables:
 %%% mode: latex
