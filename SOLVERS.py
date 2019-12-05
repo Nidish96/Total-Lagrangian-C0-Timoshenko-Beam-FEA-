@@ -256,7 +256,7 @@ def SINGTANGENTS(resfn, X, lam, mE, opt, ei=0):
     OUTPUTS :
     du1, du2, others
     """
-    pdb.set_trace()
+    # pdb.set_trace()
     def mineigval(lam, u0, k=0):
         us = SPNEWTONSOLVER(lambda u: resfn(u, lam)[0:2], u0, opt)
         return np.sort(np.linalg.eigvals(us.fjac.todense()))[k]
@@ -268,7 +268,7 @@ def SINGTANGENTS(resfn, X, lam, mE, opt, ei=0):
     biflam = so.fsolve(lambda lmu: mineigval(lmu, X[cpi-mc], k=ei), lam[cpi-mc])
     # biflam = so.bisect(lambda lmu: mineigval(lmu, X[cpi-1], k=ei), lam[cpi-1], lam[cpi])
     us = SPNEWTONSOLVER(lambda u: resfn(u, biflam)[0:2], X[cpi-mc], opt)
-    pdb.set_trace()
+
     Rb, dRdXb, dRdlb, d2RdXlb, d2RdX2b = resfn(us.x, biflam, d3=1)
     evals, evecs = np.linalg.eig(dRdXb.todense())
     evecs = np.asarray(evecs[:, np.argsort(evals)])

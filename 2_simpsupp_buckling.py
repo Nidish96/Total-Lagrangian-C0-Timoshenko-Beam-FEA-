@@ -9,6 +9,7 @@
 import numpy as np
 import pdb
 from numpy import pi
+import pickle
 import time
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
@@ -61,7 +62,7 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = -1
+smeasure = 0
 
 # Forcing Type
 Follower_Forcing = False
@@ -154,6 +155,7 @@ Xb1a, lamb1a, mEb1a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
                                       0.25, opt, ALfn=ns.ARCORTHOGFN)
 Xb1b, lamb1b, mEb1b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
                                       0.25, opt, ALfn=ns.ARCORTHOGFN)
+pdb.set_trace()
 ####################################################################################
 # Bifurcation 2 - Singularity through Second Eigenvalue
 ####################################################################################
@@ -196,6 +198,20 @@ Xb3b, lamb3b, mEb3b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
 Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
 ###############################################################################################
 
+###############################################################################################
+# SAVE RESULT
+###############################################################################################
+pickle.dump({'smeasure': smeasure, 'Follower_Forcing': Follower_Forcing,
+             'Xnds': Xnds, 'lstart': lstart, 'lend': lend,
+             'X': X, 'lam': lam, 'mE': mE, 'c1': c1, 'c2': c2, 'c3': c3,
+             'Xb1a': Xb1a, 'lamb1a': lamb1a, 'mEb1a': mEb1a,
+             'Xb1b': Xb1b, 'lamb1b': lamb1b, 'mEb1b': mEb1b,
+             'Xb2a': Xb2a, 'lamb2a': lamb2a, 'mEb2a': mEb2a,
+             'Xb2b': Xb2b, 'lamb2b': lamb2b, 'mEb2b': mEb2b,
+             'Xb3a': Xb3a, 'lamb3a': lamb3a, 'mEb3a': mEb3a,
+             'Xb3b': Xb3b, 'lamb3b': lamb3b, 'mEb3b': mEb3b},
+            open('./DATS/SSBUCK_%d.pkl' % (smeasure), 'w'))
+###############################################################################################
 
 ####################################################################################
 # PLOTS                                                                            #
