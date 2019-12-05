@@ -21,7 +21,9 @@ import pdb
 reload(nr)
 reload(ns)
 
-# Physical Properties
+###############################################################################################
+# PHYSICAL PROPTERIES                                                                         #
+###############################################################################################
 E = 210e9
 nu = 0.33
 G = E/(2.0*(1.0+nu))
@@ -41,21 +43,68 @@ props.G = G
 props.Npy = 8  # Section quadrature
 props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
 props.yrange = [-R, R]
+###############################################################################################
 
 ###############################################################################################
 # USER INPUT SECTION                                                                          #
 ###############################################################################################
-cas = 1  # CHOOSE TEST CASE HERE
-# 1: Cantilever Beam with Transverse Load At Tip
-# 2: Cantilever Beam with Moment Load At Tip
-# 3: Cantilever Beam with Axial Load At Tip
-famp = 1e8   # FORCING AMPLITUDE: High levels by Case [1: 1e4, 2: , 3: 1e8]
-famp = 1e4
-smeasures = [-1, 1, 0, 2]   # Choose Strain Measures to compare:
+# CHOOSE STRAIN MEASURES TO COMPARE HERE
 # -1: integrated Green-Lagrange;
 # 0: log;
 # 1: Green-Lagrange (numerical);
 # <other decimals>: arbitrary Seth-Hill strain exponents
+smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
+
+# CHOOSE TEST CASE HERE
+# 1: Cantilever Beam with Transverse Load At Tip
+# 2: Cantilever Beam with Moment Load At Tip
+# 3: Cantilever Beam with Axial Load At Tip
+# 4: Cantilever Beam with Transverse Follower Load At Tip
+# 5: Cantilever Beam with Axial Follower Load At Tip
+cas = 5
+
+# CHOOSE FORCING AMPLITUDE HERE
+# High levels Are Suggested for Each Case
+# Decimal overflow seems to happen some where along the iterates for a few strains (especially negative exponents and log-strain).
+if cas == 1:
+    famp = 5e3
+elif cas == 2:
+    famp = 3e3
+elif cas == 3:
+    famp = 1e7  # Tension
+elif cas == 4:
+    famp = 1e4
+elif cas == 5:
+    famp = 1e7  # Tension
+# The current solver properties have large step sizes since final state is more
+# important here than path. Therefore this can't be used for comperissive loads
+# since the curve will try to cross over bifurcation points with large step sizes
+# and fail
+
+
+# PLOTTING PARAMETERS
+STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following explicitly)
+    -100: 'Integrated Section Strain',
+    -1: 'Almansi Strain',
+    -0.5: 'Swaiger',
+    0: 'Log Strain',
+    0.5: 'Cauchy Strain',
+    1: 'Green-Lagrange Strain',
+    100: 'Kuhn Strain'}
+aflag = 0  # Set to 1 to plot analytic (linear) solutions
+
+# SOLVER AND CONTINUATION PARAMETERS
+opt = type('', (), {})()
+opt.ITMAX = 50
+opt.relethr = 1e-16
+opt.absethr = 1e-16
+opt.absrthr = 1e-10
+opt.dsmin = 1.0
+opt.dsmax = famp
+opt.b = 0.5
+opt.maxsteps = 10000
+opt.minl = 0.01
+opt.maxl = famp
 ###############################################################################################
 
 ###############################################################################################
@@ -72,11 +121,14 @@ bcs = (0, 1, 2)  # Fixed Dof's: (ux, uy, theta_y) at x = 0
 btrans = ss.csr_matrix(ss.eye(Nd))
 btrans = btrans[:, np.setdiff1d(range(Nd), bcs)]
 
-nr.FLWFRC_N
 # Loading Setup
-fshape = np.zeros(Nd)
+fshape = np.zeros(Nd)  # Non-Follower Loads
+Flwds = nr.FLWLDS()  # Follower Loads
 u0 = np.zeros(btrans.shape[1])
-if cas == 1:  # Tip-Loaded Cantilever
+if cas == 1:
+    #########################
+    # Tip-Loaded Cantilever #
+    #########################
     fshape[-2] = 1.0
     rdofs = range(1, Nd, 3)  # Transverse Displacements
     yt = 'Y'
@@ -84,7 +136,10 @@ if cas == 1:  # Tip-Loaded Cantilever
     def x_an(x): return [x*0]  # Analytic Solution (EB)
 
     def u_an(x): return famp*x**2*(3.0*L-x)/(6.0*props.EI2), famp*x*(2.0*L-x)/(2.0*props.EI2)  # Analytic Solution (EB)
-elif cas == 2:  # Cantilever with tip moment
+elif cas == 2:
+    ##############################
+    # Cantilever with tip moment #
+    ##############################
     fshape[-1] = 1.0
     rdofs = range(1, Nd, 3)  # Transverse Displacements
     yt = 'Y'
@@ -92,7 +147,10 @@ elif cas == 2:  # Cantilever with tip moment
     def x_an(x): return [x*0]  # Analytic Solution (EB)
 
     def u_an(x): return famp*x**2/(2.0*props.EI2), famp*x/props.EI2  # Analytical Solution (EB)
-elif cas == 3:  # Axially loaded bar
+elif cas == 3:
+    ######################
+    # Axially loaded bar #
+    ######################
     fshape[-3] = 1.0
     rdofs = range(0, Nd, 3)  # Axial Displacements
     yt = 'Y'
@@ -100,23 +158,40 @@ elif cas == 3:  # Axially loaded bar
     def x_an(x): return [famp*x/props.EA]  # Analytic Solution (EB)
 
     def u_an(x): return [famp*x/props.EA]  # Analytical Solution (Linear Bar)
+elif cas == 4:
+    ############################################
+    # Cantilever with transverse follower load #
+    ############################################
+    Flwds.Nl += 1
+    Flwds.nd.append(Nn-1)
+    Flwds.F.append(np.array([0.0, 1.0]))
+
+    rdofs = range(1, Nd, 3)  # Transverse Displacements
+    yt = 'Y'
+
+    def x_an(x): return [x*0]  # Analytic Solution (EB)
+
+    def u_an(x): return famp*x**2*(3.0*L-x)/(6.0*props.EI2), famp*x*(2.0*L-x)/(2.0*props.EI2)  # Analytic Solution (EB)
+elif cas == 5:
+    #######################################
+    # Cantilever with Axial Follower Load #
+    #######################################
+    Flwds.Nl += 1
+    Flwds.nd.append(Nn-1)
+    Flwds.F.append(np.array([1.0, 0.0]))
+
+    rdofs = range(0, Nd, 3)  # Axial Displacements
+    yt = 'X'
+
+    def x_an(x): return [x*0]  # Analytic Solution (EB)
+
+    def u_an(x): return famp*x**2/(2.0*props.EI2), famp*x/props.EI2  # Analytical Solution (EB)
+
 u0 = btrans[rdofs, :].T.dot(u_an(Xnds)[0])/famp
-# Solver options
-opt = type('', (), {})()
-opt.ITMAX = 50
-opt.relethr = 1e-16
-opt.absethr = 1e-16
-opt.absrthr = 1e-10
-opt.dsmin = 1.0
-opt.dsmax = famp/2
-opt.b = 0.5
-opt.maxsteps = 10000
-opt.minl = 0.01
-opt.maxl = famp
 
 
-# Function Handle for Continuation
-def func(u, l, d3=0, smeasure=-1): return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape, btrans, No, props, d3=d3, smeasure=smeasure)
+# Function Handle for Continuation - Follower Loading Case
+def func(u, l, d3=0, smeasure=-100): return nr.STATICRESFN(Xnds, np.hstack((u, l)), fshape, btrans, No, props, NDFls=Flwds, d3=d3, smeasure=smeasure)
 
 
 uphs = np.zeros((Nd, len(smeasures)))
@@ -126,13 +201,12 @@ for i in range(len(smeasures)):
         X, lam, _ = ns.CONTINUESOLS(lambda u, l: func(u, l, smeasure=smeasures[i]), u0*0.01,
                                     10.0, famp, famp/5, opt, adapt=1, ALfn=ns.ARCORTHOGFN)
         # Exact Point solution for comparison
-        us = ns.SPNEWTONSOLVER(lambda u: nr.STATICRESFN(Xnds, np.hstack((u, famp)), fshape,
-                                                        btrans, No, props,
-                                                        smeasure=smeasures[i])[0:2], X[-1], opt)
+        us = ns.SPNEWTONSOLVER(lambda u: func(u, famp, smeasure=smeasures[i])[0:2], X[-1], opt)
         u0 = X[0]
         uphs[:, i] = btrans.dot(us.x)
-        print('%d %d %d' % (smeasures[i], us.success, us.status))
+        print('%.1f %d %d' % (smeasures[i], us.success, us.status))
     except Exception as inst:
+        uphs[:, i] = btrans.dot(us.x*0)
         print('dnan')
 ###############################################################################################
 
@@ -145,16 +219,20 @@ fig, ax = plt.subplots(num=cas, clear=True)
 ax.plot(xg, xg*0, 'k--', label='_nolegend_')
 
 for i in range(len(smeasures)):
-    if smeasures[i] in nr.STRAINMEASURES.keys():
-        lt = nr.STRAINMEASURES[smeasures[i]]
+    if smeasures[i] in STRAINMEASURES.keys():
+        lt = STRAINMEASURES[smeasures[i]]
     else:
         lt = 'Seth-Hill: %.2f' % (smeasures[i])
     ax.plot(Xnds+uphs[0::3, i], uphs[rdofs, i], 'o-', label=lt)
-ax.plot(xg+x_an(xg)[0], u_an(xg)[0], 'k:', label='Analytical (Linear) Solution')
+if aflag:
+    ax.plot(xg+x_an(xg)[0], u_an(xg)[0], 'k:', label='Analytical (Linear) Solution')
 ax.legend(loc='upper left')
+plt.xlim([0, np.max(np.ceil((Xnds+np.max(uphs[0::3, :], 1))*10)/10)])
+plt.grid()
+
 ax.yaxis.set_major_formatter(FormatStrFormatter('%.0e'))
 plt.xlabel('X Coordinate (m)')
 plt.ylabel('%s Deflection (m)' % (yt))
 
-# fig.savefig('./FIGS/VALIDATION_F%d_CASE%d.pdf' % (famp, cas), dpi=100)
+fig.savefig('./FIGS/VALIDATION_F%d_CASE%d.pdf' % (famp, cas), dpi=100)
 ###############################################################################################
