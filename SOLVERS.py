@@ -2,7 +2,7 @@
 ###################################################################################################
 # FILE: SOLVERS.py                                                                                #
 # Written by Nidish Narayanaa Balaji on 19 Nov 2018                                               #
-# Last modified by N. N. Balaji on 1 Dec 2018                                                     #
+# Last modified by N. N. Balaji on 5 Dec 2019                                                     #
 #                                                                                                 #
 # The current file includes routines required for the solution and path-tracing carrieed out. An  #
 # exact Newton solver is implemented for the sparse FEM systems since SciPy's full Jacobian root  #

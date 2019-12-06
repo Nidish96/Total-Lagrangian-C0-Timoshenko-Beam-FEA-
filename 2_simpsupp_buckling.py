@@ -57,12 +57,12 @@ props.yrange = [-R, R]
 STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following explicitly)
     -100: 'Integrated Section Strain',
     -1: 'Almansi Strain',
-    -0.5: 'Swaiger',
+    -0.5: 'Swaiger Strain',
     0: 'Log Strain',
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = 0.5
+smeasure = 100
 
 # Forcing Type
 Follower_Forcing = False
@@ -80,6 +80,9 @@ opt.maxsteps = 10000
 
 # CALCULATE OR LOAD DATA
 CALC = True
+
+# PLOT OR NOT
+PLOT = False
 ###############################################################################################
 
 ###############################################################################################
@@ -256,92 +259,99 @@ else:
     lamb3b = data['lamb3b']
     mEb3b = data['mEb3b']
 
+
+# CRITICAL LOAD
+if smeasure in STRAINMEASURES.keys():
+    lt = STRAINMEASURES[smeasure]
+else:
+    lt = 'Seth-Hill: %.2f' % (smeasure)
+print('%s; CriticaL Loads:' % (lt))
+print(np.array([lamb1a[0], lamb2a[0], lamb3a[0]]))
+
 ####################################################################################
 # PLOTS                                                                            #
 ####################################################################################
-plt.ion()
-fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=False, clear=True, num=1, squeeze=True)
-axes[0].plot(lam, (np.array(X).dot(btrans.T.todense()))[:, -2], 'k.-', label='Main branch')
-axes[0].plot(lamb1a, (np.array(Xb1a))[:, -2], 'b-', label='Branch 1a')
-axes[0].plot(lamb1b, (np.array(Xb1b))[:, -2], 'r-', label='Branch 1b')
-axes[0].plot(lamb2a, (np.array(Xb2a))[:, -2], 'b.-', label='Branch 2a')
-axes[0].plot(lamb2b, (np.array(Xb2b))[:, -2], 'r.-', label='Branch 2b')
-axes[0].plot(lamb3a, (np.array(Xb3a))[:, -2], 'b+-', label='Branch 3a')
-axes[0].plot(lamb3b, (np.array(Xb3b))[:, -2], 'r+-', label='Branch 3b')
-axes[0].set(xlabel='Forcing (N)', ylabel='X Amplitude (m)', ylim=(-2.0, 2.0))
-axes[0].grid()
-axes[0].legend(loc='upper center', ncol=3)
-axes[1].plot(lam, (np.array(X))[:, -1], 'k.-')
-axes[1].plot(lamb1a, (np.array(Xb1a))[:, -1], 'b-')
-axes[1].plot(lamb1b, (np.array(Xb1b))[:, -1], 'r-')
-axes[1].plot(lamb2a, (np.array(Xb2a))[:, -1], 'b.-')
-axes[1].plot(lamb2b, (np.array(Xb2b))[:, -1], 'r.-')
-axes[1].plot(lamb3a, (np.array(Xb3a))[:, -1], 'b+-')
-axes[1].plot(lamb3b, (np.array(Xb3b))[:, -1], 'r+-')
-axes[1].set(xlabel='Forcing (N)', ylabel=r'End Angle ($\theta$)')
-axes[1].grid()
-for k in range(3):
-    axes[0].axvline(x=Pcrits[k], color='k', linestyle='--')
-    axes[1].axvline(x=Pcrits[k], color='k', linestyle='--')
-axes[0].arrow(lam[c1], X[c1][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
-axes[0].arrow(lam[c2], X[c2][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
-axes[0].arrow(lam[c3], X[c3][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
-axes[1].arrow(lam[c1], X[c1][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
-axes[1].arrow(lam[c2], X[c2][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
-axes[1].arrow(lam[c3], X[c3][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
-# fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_RESP_SIMPSUPP.pdf', dpi=100)
-# fig.savefig('./FIGS/FOLLOWER_BUCKLING_RESP_SIMPSUPP.pdf', dpi=100)
+if PLOT:
+    plt.ion()
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=False, clear=True, num=1, squeeze=True)
+    axes[0].plot(lam, (np.array(X).dot(btrans.T.todense()))[:, -2], 'k.-', label='Main branch')
+    axes[0].plot(lamb1a, (np.array(Xb1a))[:, -2], 'b-', label='Branch 1a')
+    axes[0].plot(lamb1b, (np.array(Xb1b))[:, -2], 'r-', label='Branch 1b')
+    axes[0].plot(lamb2a, (np.array(Xb2a))[:, -2], 'b.-', label='Branch 2a')
+    axes[0].plot(lamb2b, (np.array(Xb2b))[:, -2], 'r.-', label='Branch 2b')
+    axes[0].plot(lamb3a, (np.array(Xb3a))[:, -2], 'b+-', label='Branch 3a')
+    axes[0].plot(lamb3b, (np.array(Xb3b))[:, -2], 'r+-', label='Branch 3b')
+    axes[0].set(xlabel='Forcing (N)', ylabel='X Amplitude (m)', ylim=(-2.0, 2.0))
+    axes[0].grid()
+    axes[0].legend(loc='upper center', ncol=3)
+    axes[1].plot(lam, (np.array(X))[:, -1], 'k.-')
+    axes[1].plot(lamb1a, (np.array(Xb1a))[:, -1], 'b-')
+    axes[1].plot(lamb1b, (np.array(Xb1b))[:, -1], 'r-')
+    axes[1].plot(lamb2a, (np.array(Xb2a))[:, -1], 'b.-')
+    axes[1].plot(lamb2b, (np.array(Xb2b))[:, -1], 'r.-')
+    axes[1].plot(lamb3a, (np.array(Xb3a))[:, -1], 'b+-')
+    axes[1].plot(lamb3b, (np.array(Xb3b))[:, -1], 'r+-')
+    axes[1].set(xlabel='Forcing (N)', ylabel=r'End Angle ($\theta$)')
+    axes[1].grid()
+    for k in range(3):
+        axes[0].axvline(x=Pcrits[k], color='k', linestyle='--')
+        axes[1].axvline(x=Pcrits[k], color='k', linestyle='--')
+        axes[0].arrow(lam[c1], X[c1][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
+        axes[0].arrow(lam[c2], X[c2][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
+        axes[0].arrow(lam[c3], X[c3][-3]-1.4, 0.0, 1.0, head_width=5000.0, head_length=0.2, fc='g', ec='g', linewidth=4)
+        axes[1].arrow(lam[c1], X[c1][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
+        axes[1].arrow(lam[c2], X[c2][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
+        axes[1].arrow(lam[c3], X[c3][-3]-1.75, 0.0, 1.25, head_width=5000.0, head_length=0.25, fc='g', ec='g', linewidth=4)
+    # fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_RESP_SIMPSUPP.pdf', dpi=100)
+    # fig.savefig('./FIGS/FOLLOWER_BUCKLING_RESP_SIMPSUPP.pdf', dpi=100)
 
-fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=2, squeeze=True)
-k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb1a)-1)).astype(int)
-k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb1b)-1)).astype(int)
-axes[0].plot(Xnds, Xnds*0, 'k--')
-for k in k1s:
-    axes[0].plot(Xnds+btrans[0::3, :].dot(Xb1a[k]), btrans[1::3, :].dot(Xb1a[k]), '.-', label='Force = %.0f' % (lamb1a[k]))
-axes[0].grid()
-axes[0].legend(loc='upper center', ncol=3)
-axes[0].set(ylabel='Y Coordinate (m)', title='Branch 1a')
-axes[1].plot(Xnds, Xnds*0, 'k--')
-for k in k2s:
-    axes[1].plot(Xnds+btrans[0::3, :].dot(Xb1b[k]), btrans[1::3, :].dot(Xb1b[k]), '.-', label='_nolegend_')
-axes[1].grid()
-axes[1].set(ylabel='Y Coordinate (m)', title='Branch 1b')
-# fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_1_SIMPSUPP.pdf', dpi=100)
-# fig.savefig('./FIGS/FOLLOWER_BUCKLING_1_SIMPSUPP.pdf', dpi=100)
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=2, squeeze=True)
+    k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb1a)-1)).astype(int)
+    k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb1b)-1)).astype(int)
+    axes[0].plot(Xnds, Xnds*0, 'k--')
+    for k in k1s:
+        axes[0].plot(Xnds+btrans[0::3, :].dot(Xb1a[k]), btrans[1::3, :].dot(Xb1a[k]), '.-', label='Force = %.0f' % (lamb1a[k]))
+    axes[0].grid()
+    axes[0].legend(loc='upper center', ncol=3)
+    axes[0].set(ylabel='Y Coordinate (m)', title='Branch 1a')
+    axes[1].plot(Xnds, Xnds*0, 'k--')
+    for k in k2s:
+        axes[1].plot(Xnds+btrans[0::3, :].dot(Xb1b[k]), btrans[1::3, :].dot(Xb1b[k]), '.-', label='_nolegend_')
+    axes[1].grid()
+    axes[1].set(ylabel='Y Coordinate (m)', title='Branch 1b')
+    # fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_1_SIMPSUPP.pdf', dpi=100)
+    # fig.savefig('./FIGS/FOLLOWER_BUCKLING_1_SIMPSUPP.pdf', dpi=100)
 
-fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=3, squeeze=True)
-k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb2a)-1)).astype(int)
-k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb2b)-1)).astype(int)
-axes[0].plot(Xnds, Xnds*0, 'k--')
-for k in k1s:
-    axes[0].plot(Xnds+btrans[0::3, :].dot(Xb2a[k]), btrans[1::3, :].dot(Xb2a[k]), '.-', label='Force = %.0f' % (lamb2a[k]))
-axes[0].grid()
-axes[0].legend(loc='upper center', ncol=3)
-axes[0].set(ylabel='Y Coordinate (m)', title='Branch 2a')
-axes[1].plot(Xnds, Xnds*0, 'k--')
-for k in k2s:
-    axes[1].plot(Xnds+btrans[0::3, :].dot(Xb2b[k]), btrans[1::3, :].dot(Xb2b[k]), '.-', label='_nolegend_')
-axes[1].grid()
-axes[1].set(ylabel='Y Coordinate (m)', title='Branch 2b')
-# fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_2_SIMPSUPP.pdf', dpi=100)
-# fig.savefig('./FIGS/FOLLOWER_BUCKLING_2_SIMPSUPP.pdf', dpi=100)
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=3, squeeze=True)
+    k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb2a)-1)).astype(int)
+    k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb2b)-1)).astype(int)
+    axes[0].plot(Xnds, Xnds*0, 'k--')
+    for k in k1s:
+        axes[0].plot(Xnds+btrans[0::3, :].dot(Xb2a[k]), btrans[1::3, :].dot(Xb2a[k]), '.-', label='Force = %.0f' % (lamb2a[k]))
+    axes[0].grid()
+    axes[0].legend(loc='upper center', ncol=3)
+    axes[0].set(ylabel='Y Coordinate (m)', title='Branch 2a')
+    axes[1].plot(Xnds, Xnds*0, 'k--')
+    for k in k2s:
+        axes[1].plot(Xnds+btrans[0::3, :].dot(Xb2b[k]), btrans[1::3, :].dot(Xb2b[k]), '.-', label='_nolegend_')
+    axes[1].grid()
+    axes[1].set(ylabel='Y Coordinate (m)', title='Branch 2b')
+    # fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_2_SIMPSUPP.pdf', dpi=100)
+    # fig.savefig('./FIGS/FOLLOWER_BUCKLING_2_SIMPSUPP.pdf', dpi=100)
 
-fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=4, squeeze=True)
-k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb3a)-1)).astype(int)
-k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb3b)-1)).astype(int)
-axes[0].plot(Xnds, Xnds*0, 'k--')
-for k in k1s:
-    axes[0].plot(Xnds+btrans[0::3, :].dot(Xb3a[k]), btrans[1::3, :].dot(Xb3a[k]), '.-', label='Force = %.0f' % (lamb3a[k]))
-axes[0].grid()
-axes[0].legend(loc='upper center', ncol=3)
-axes[0].set(ylabel='Y Coordinate (m)', title='Branch 3a')
-axes[1].plot(Xnds, Xnds*0, 'k--')
-for k in k2s:
-    axes[1].plot(Xnds+btrans[0::3, :].dot(Xb3b[k]), btrans[1::3, :].dot(Xb3b[k]), '.-', label='_nolegend_')
-axes[1].grid()
-axes[1].set(ylabel='Y Coordinate (m)', title='Branch 3b')
-# fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100
-# fig.savefig('./FIGS/FOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100)
-
-print('CriticaLl Loads:')
-print(np.array([lamb1a[0], lamb2a[0], lamb3a[0]]))
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, clear=True, num=4, squeeze=True)
+    k1s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb3a)-1)).astype(int)
+    k2s = (np.array([1.0, 25.0, 50.0, 75.0, 100.0])/100*(len(lamb3b)-1)).astype(int)
+    axes[0].plot(Xnds, Xnds*0, 'k--')
+    for k in k1s:
+        axes[0].plot(Xnds+btrans[0::3, :].dot(Xb3a[k]), btrans[1::3, :].dot(Xb3a[k]), '.-', label='Force = %.0f' % (lamb3a[k]))
+    axes[0].grid()
+    axes[0].legend(loc='upper center', ncol=3)
+    axes[0].set(ylabel='Y Coordinate (m)', title='Branch 3a')
+    axes[1].plot(Xnds, Xnds*0, 'k--')
+    for k in k2s:
+        axes[1].plot(Xnds+btrans[0::3, :].dot(Xb3b[k]), btrans[1::3, :].dot(Xb3b[k]), '.-', label='_nolegend_')
+    axes[1].grid()
+    axes[1].set(ylabel='Y Coordinate (m)', title='Branch 3b')
+    # fig.savefig('./FIGS/NONFOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100
+    # fig.savefig('./FIGS/FOLLOWER_BUCKLING_3_SIMPSUPP.pdf', dpi=100)

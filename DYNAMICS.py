@@ -2,17 +2,21 @@
 #############################################################################################
 # FILE: DYNAMICS.py                                                                         #
 # Written by Nidish Narayanaa Balaji on 17 Nov 2018                                         #
-# Last modified by N. N. Balaji on 1 Dec 2018                                               #
+# Last modified by N. N. Balaji on 5 Dec 2019                                               #
 #                                                                                           #
 # This file contains definitions for routines necessary for dynamic analysis of the system. #
 #############################################################################################
 import numpy as np
-from numpy import sqrt, kron, dot, diff, squeeze, sin, cos, einsum
+from numpy import sqrt, kron, dot, diff, squeeze, sin, cos
 import scipy.sparse as ss
 import scipy.sparse.linalg as sl
 import sparse as sp
 import pdb
 import STATICS as nr
+from numpy import einsum #####
+# from opt_einsum import contract
+# einsum = contract
+################################
 
 
 def DMAT(xi, props, sla=0):

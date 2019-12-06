@@ -2,7 +2,7 @@
 ###################################################################################################
 # FILE: STATICS.py                                                                                #
 # Written by Nidish Narayanaa Balaji on 16 Nov 2018                                               #
-# Last modified by N. N. Balaji on 1 Dec 2018                                                     #
+# Last modified by N. N. Balaji on 5 Dec 2019                                                     #
 #                                                                                                 #
 # The current file contains the definitions of routines required for solving static problems      #
 # with the formulation. It also contains important routines for the finite element approximation. #
@@ -10,11 +10,16 @@
 # contain a full Jacobian solver implemented for systems with sparse matrices.                    #
 ###################################################################################################
 import numpy as np
-from numpy import sqrt, kron, dot, diff, squeeze, sin, cos, einsum, ones, ones_like, eye
+from numpy import sqrt, kron, dot, diff, squeeze, sin, cos, ones, ones_like, eye
 import scipy.sparse as ss
 import scipy.linalg as sn
+import scipy.optimize as so
 import sparse as sp
 import pdb
+from numpy import einsum #####
+# from opt_einsum import contract
+# einsum = contract
+################################
 
 
 def SF(xi):
@@ -753,9 +758,211 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
                     d2strain[:, :, i, j, :, :] = d2FTF[:, :, i, j, :, :]/2
                     if d3 == 1:
                         d3strain[:, :, i, j, :, :, :] = d3FTF[:, :, i, j, :, :, :]/2
+    # Conversion to Engineering Notation
+    # strain[0, 1, :, :] *= 2
+    # strain[1, 0, :, :] *= 2
+    # dstrain[0, 1, :, :, :] *= 2
+    # dstrain[1, 0, :, :, :] *= 2
+    # d2strain[0, 1, :, :, :, :] *= 2
+    # d2strain[1, 0, :, :, :, :] *= 2
     if d3 == 1:
+    #     d3strain[0, 1, :, :, :, :, :] *= 2
+    #     d3strain[1, 0, :, :, :, :, :] *= 2
         return strain, dstrain, d2strain, d3strain
     return strain, dstrain, d2strain
+
+
+class PLASTICITYFORM():
+    """Class for defining the formulation of plasticity employed
+    MEMBERS:
+    yield_surf		: [lambda lams: (max(abs(lams)-1e9), np.zeros_like(lams))]
+                           Function handle (of the eigenvalues of stress tensor) defining
+                           the yield surface and it's local gradients
+    flow_rule 		: [lambda lams: (max(abs(lams)-1e9), np.zeros_like(lams))]
+                           Function handle (of the eigenvalues of stress tensor) defining
+                           the flow rule
+    """
+
+    def __init__(self):
+        self.type = 'VONMISES'
+        self.flow_potential = 'ASSOCIATED'  # Associated Flow Rule
+        self.H = 0  # Hardness Coefficient
+        self.title = 'Elastic-Perfectly Plastic'
+
+
+def YIELD_SURFACE_FUNC(sigs, alpha, PlFrm=PLASTICITYFORM()):
+
+    F = np.sqrt(sigs.dot(sigs)) - 3e6
+    dFdsigs = sigs/np.sqrt(sigs.dot(sigs))
+    dFdalpha = np.array([0.0])
+    d2Fdsigs2 = np.eye(2)/np.sqrt(sigs.dot(sigs)) - \
+        einsum("i,j", sigs, sigs)/np.sqrt(sigs.dot(sigs))**3
+    return F, dFdsigs, dFdalpha, d2Fdsigs2
+
+
+def Ffunc(YSFUN, gamma, sigs_trial, alpha_trial, sigs_hat, alpha_hat):
+    # pdb.set_trace()
+
+    F, dFdsig, dFdalph = YSFUN(sigs_trial - gamma*sigs_hat, alpha_trial - gamma*alpha_hat)
+    dFdgamma = -(np.array(dFdsig).dot(np.array(sigs_hat)) +
+                 np.array(dFdalph).dot(np.array(alpha_hat)))
+    return np.array(F), np.array(dFdgamma)
+
+
+def GENUFUNC_EP(xi, X, d, props, strain_p=None, alphas=None, sla=1, d3=0, smeasure=1, PlFrm=PLASTICITYFORM()):
+    """GENUFUNC_EP   : Returns the Generalized energy and its derivatives
+    USAGE   :
+        U, dU, d2U = GENUFUNC_EP(xi, X, d, props, strain_p, gamma, sla, d3, smeasure, PlFrm)
+    INPUTS  :
+        xi	:
+        X	:
+        d	:
+        props   : Properties class with members:
+                   E, G, Npy,
+                      yrange: [ymin ymax]
+                      bfunc: bfunc(y) should return section breadth at location y
+        strain_p: Plastic strain [None] assumes zeros everywhere
+        alpha   : Plastic Parameter [None] assumes zero everywhere
+        sla	:
+        d3	:
+        PlFrm   :
+        smeasure:
+    OUTPUTS :
+    U, dU, d2U, d3U
+    """
+    yi, wyi = np.polynomial.legendre.leggauss(props.Npy)  # Quadrature for section
+    jacy = np.diff(props.yrange)/2
+    ys = props.yrange[0] + 2*jacy*yi
+    ys = (1-yi)/2*props.yrange[0] + (1+yi)/2*props.yrange[1]
+
+    Le, dLe, d2Le, d3Le = LE(X, d)
+    dLe = np.reshape(dLe, (dLe.shape[0], 1))
+    if d3 == 0:
+        strain, dstrain, d2strain = STRAIN(xi, ys, X, d, props, sla, d3, smeasure)
+    elif d3 == 1:
+        strain, dstrain, d2strain, d3strain = STRAIN(xi, ys, X, d, props, sla=sla,
+                                                     d3=d3, smeasure=smeasure)
+
+    # Plasticity Analysis
+    # pdb.set_trace()
+    Np_xi = len(xi)
+    Np_y = len(ys)
+    Nd = len(d)
+    if strain_p is None:  # Change
+        strain_p = np.zeros_like(strain)
+    if alphas is None:  # Change
+        alphas = np.zeros((Np_xi, Np_y))
+
+    dgamma = 0
+    dsigsdstress = np.zeros((2, 2, 2))
+    dstrain_pdstrain = np.zeros((2, 2, 2, 2))
+    dstrain_p = np.zeros((2, 2, Nd))
+    d2strain_p = np.zeros((2, 2, Nd, Nd))  # Yet to implement
+
+    Dtens = np.zeros((2, 2, 2, 2))  # 4th order constitutive tensor
+    Dtens[0, 0, 0, 0] = Dtens[1, 1, 1, 1] = props.E
+    Dtens[0, 1, 0, 1] = Dtens[1, 0, 1, 0] = props.G  # Engineering Strain Definition
+    Dmat = np.array([[props.E, props.G], [props.G, props.E]])
+    Itens = 0.5*(einsum("ij,kl", np.eye(2), np.eye(2)) +
+                 einsum("ik,jl", np.eye(2), np.eye(2)))  # 4th order identity tensor
+
+    stress = np.zeros((2, 2))
+
+    U = np.zeros(Np_xi)
+    dU = np.zeros((Nd, Np_xi))
+    d2U = np.zeros((Np_xi, Nd, Nd))
+    for i in range(Np_xi):
+        for j in range(Np_y):
+            # Stress
+            stress = einsum("ijkl,kl->ij", Dtens,
+                            strain[:, :, i, j]-strain_p[:, :, i, j])  # Elastic trial
+            dstressdstrain = Dtens
+            # Principal Stresses
+            sigs, phi = sn.eigh(stress)  # Of elastic trial stress
+            ep_p, phi_e = sn.eigh(strain[:, :, i, j]-strain_p[:, :, i, j])
+            dsigsdstress[0, :, :] = einsum("i,ijkl,j->kl", phi[:, 0], Itens, phi[:, 0])
+            dsigsdstress[1, :, :] = einsum("i,ijkl,j->kl", phi[:, 1], Itens, phi[:, 1])
+            dsigsdstrain = einsum("imn,mnjk->ijk", dsigsdstress, Dtens)
+            dstraindep = einsum("ji,ki->ijk", phi_e, phi_e)
+            dsigsdep = einsum("ijk,jkl->il", dsigsdstrain, dstraindep)  # constitutive rel in principal domain
+
+            # Parameter
+            alpha = alphas[i, j]  # Elastic trial
+            # Yield Surface and Gradient
+            F_tr, dFdsigs_tr, dFdalph_tr, d2Fdsigs2_tr = YIELD_SURFACE_FUNC(sigs, alpha, PlFrm)
+            # Return Mapping
+            dstrain_pdstrain = np.zeros_like(dstrain_pdstrain)
+            if F_tr > 0:  # Need to state F(sigs+sigs_nrm*gamma) = 0 by fixing gamma > 0
+                # Need to change eps_p to sigs relationship
+                dgamma = so.fsolve(lambda x: YIELD_SURFACE_FUNC(sigs-x*props.E*dFdsigs_tr,
+                                                                alpha+PlFrm.H*x*dFdalph_tr,
+                                                                PlFrm)[0], 0)
+                # At converged solution (On yield surface)
+                F_ys, dFdsigs_ys, dFdalph_ys, d2Fdsigs2_ys = \
+                    YIELD_SURFACE_FUNC(sigs - dgamma*props.E*dFdsigs_tr,
+                                       alpha + PlFrm.H*dgamma*dFdalph_tr, PlFrm)
+
+                # Gradients
+                dFddg = -dFdsigs_tr.dot(dFdsigs_ys) - PlFrm.H*dFdalph_tr.dot(dFdalph_ys)
+                ddgdsigs = -dFdsigs_ys/dFddg
+                ddgdstrain = einsum("i,ijk->jk", ddgdsigs, dsigsdstrain)
+
+                # Update Parameters
+                sigs = sigs - dgamma*props.E*dFdsigs_tr  # Updated principal stresses
+                dsigsdstrain = dsigsdstrain - einsum("jk,i->ijk", ddgdstrain, props.E*dFdsigs_ys) - \
+                    dgamma*einsum("im,mjk->ijk", d2Fdsigs2_tr, props.E*dsigsdstrain)
+
+                stress = einsum("mi,m,jm->ij", phi, sigs, phi)
+                dstressdstrain = einsum("mi,mkl,jm->ijkl", phi, dsigsdstrain, phi)  # Consistent Tangent
+                
+                strain_p[:, :, i, j] = strain[:, :, i, j] - stress/Dmat
+                dstrain_pdstrain = Itens - einsum("ij,ijkl->ijkl", 1.0/Dmat, dstressdstrain)
+                alphas[i, j] = alpha + PlFrm.H*dgamma*dFdalph_ys
+                
+                # pdb.set_trace()
+            dstrain_p = einsum("ijkl,klm->ijm", dstrain_pdstrain, dstrain[:, :, i, j, :])
+            # Variational Quantities and Derivatives
+            # Strain Work Density
+            U[i] = (0.5*props.E*(strain[0, 0, i, j]**2+strain[1, 1, i, j]**2) +
+                    props.G*strain[0, 1, i, j]**2)*(wyi*props.bfunc(ys)*jacy)[j] - \
+                0.5*(props.E*(strain_p[0, 0, i, j]**2+strain_p[1, 1, i, j]**2) +
+                     props.G*strain[0, 1, i, j]**2)*(wyi*props.bfunc(ys)*jacy)[j]
+            # First Derivative
+            dU[:, i] = (props.E*(strain[0, 0, i, j]*dstrain[0, 0, i, j, :] +
+                                 strain[1, 1, i, j]*dstrain[1, 1, i, j, :]) +
+                        props.G*(strain[0, 1, i, j]*dstrain[0, 1, i, j, :])) * \
+                (wyi*props.bfunc(ys)*jacy)[j] - \
+                ((props.E*(strain_p[0, 0, i, j]*dstrain_p[0, 0, :]) +
+                  strain_p[1, 1, i, j]*dstrain_p[1, 1, :]) +
+                 props.G*(strain_p[0, 1, i, j]*dstrain_p[0, 1, :])) * \
+                (wyi*props.bfunc(ys)*jacy)[j]
+            # Second Derivative
+            d2U[i, :, :] = (props.E*(einsum("l,k->kl", dstrain[0, 0, i, j, :],
+                                            dstrain[0, 0, i, j, :]) +
+                                     strain[0, 0, i, j]*d2strain[0, 0, i, j, :, :] +
+                                     einsum("l,k->kl", dstrain[1, 1, i, j, :],
+                                            dstrain[1, 1, i, j, :]) +
+                                     strain[1, 1, i, j]*d2strain[1, 1, i, j, :, :]) +
+                            props.G*(einsum("l,k->kl", dstrain[0, 1, i, j, :],
+                                            dstrain[0, 1, i, j, :]) +
+                                     (strain[0, 1, i, j]*d2strain[0, 1, i, j, :, :]))) * \
+                (wyi*props.bfunc(ys)*jacy)[j] - \
+                (props.E*(einsum("l,k->kl", dstrain_p[0, 0, :], dstrain_p[0, 0, :]) +
+                          strain_p[0, 0, i, j]*d2strain_p[0, 0, :, :] +
+                          einsum("l,k->kl", dstrain_p[1, 1, :],
+                                 dstrain_p[1, 1, :]) +
+                          strain_p[1, 1, i, j]*d2strain_p[1, 1, :, :]) +
+                 props.G*(einsum("l,k->kl", dstrain_p[0, 1, :],
+                                 dstrain_p[0, 1, :]) +
+                          (strain_p[0, 1, i, j]*d2strain_p[0, 1, :, :]))) * \
+                (wyi*props.bfunc(ys)*jacy)[j]
+    # pdb.set_trace()
+    Nd = len(d)
+    Np_xi = len(xi)
+    d2U = d2U.reshape(Nd, Nd*Np_xi)  # Compliant with FINT_E
+    if d3 == 1:
+        raise Exception('Not Implemented')
+    return U, dU, d2U, strain_p, alphas
 
 
 def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
@@ -778,7 +985,6 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
     """
     yi, wyi = np.polynomial.legendre.leggauss(props.Npy)  # Quadrature for section
     jacy = np.diff(props.yrange)/2
-    ys = props.yrange[0] + 2*jacy*yi
     ys = (1-yi)/2*props.yrange[0] + (1+yi)/2*props.yrange[1]
 
     Le, dLe, d2Le, d3Le = LE(X, d)
@@ -791,7 +997,7 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
 
     # Strain Energy
     U = 0.5*einsum("ij,j->i", props.E*(strain[0, 0, :, :]**2+strain[1, 1, :, :]**2) +
-                   props.G*strain[0, 1, :, :]**2, wyi*props.bfunc(ys)*jacy)
+                   2*props.G*strain[0, 1, :, :]**2, wyi*props.bfunc(ys)*jacy)
     # First Derivative
     dU = einsum("ijk,j->ki", props.E*(einsum("ij,ijk->ijk", strain[0, 0, :, :],
                                              dstrain[0, 0, :, :, :]) +
@@ -928,10 +1134,12 @@ def FINT_E(X, d, No, props, sla=1, d3=0, smeasure=-1):
     dLe = np.reshape(dLe, (dLe.shape[0], 1))
 
     # Relevant function Call
+    # pdb.set_trace()
     if smeasure == -100:  # Integrated Section-Strain
         U, dU, d2U = UFUNC_E(xi, X, d, props, sla, 0)
     else:  # Generic Strains
         U, dU, d2U = GENUFUNC_E(xi, X, d, props, sla, 0, smeasure)
+        # U, dU, d2U = GENUFUNC_EP(xi, X, d, props, sla=sla, d3=0, smeasure=smeasure)
 
     Fins1 = kron(2.0*U, dLe)/4
     Fins2 = dU*Le/2
@@ -1101,3 +1309,128 @@ def STATICRESFN(Xnds, u, fshape, btrans, No, props, sla=1, spret=1, NDFls=FLWLDS
             d2RdX2 = sp.COO.from_numpy(d2RdX2)
         return R, dRdX, dRdf, d2RdXdf, d2RdX2
     return R, dRdX, dRdf, d2RdXdf
+
+
+def FINT_EP(X, d, No, props, sla=1, d3=0, smeasure=1, PlFrm=PLASTICITYFORM(),
+            strain_p=None, alphas=None):
+    """FINT_EP   : Returns the static internal force developed in the system along with its Jacobian calclulated with Gaussian Quadrature
+    USAGE   :
+    Finte, Jinte = FINT_EP(X, d, No, props, sla=1, d3=0, PlFrm=PLASTICITYFORM(), strain_p=None, alphas=None)
+    INPUTS  :
+    X		: 2x1 nodal X coordinates
+    d		: 6x1 nodal degrees of freedom
+    No		: 1x1 Number of quadrature points per element for integration
+    props	: Properties class with members,
+        EA, GA, EI2, EI4
+    sla		: int [1] Flag for adjusting for shear locking
+    d3 		: int [0] Flag for returning third derivative tensor
+    smeasure    : int [-1] Specify which strain measure to use
+    OUTPUTS :
+    Finte	: 6x1 nodal forces
+    Jinte	: 6x6 nodal Jacobian
+    Hinte	: 6x6x6 (optional) Hessian tensor
+    """
+    xi, wi = np.polynomial.legendre.leggauss(No)  # Quadrature Points & Weights
+
+    Le, dLe, d2Le, d3Le = LE(X, d)
+    dLe = np.reshape(dLe, (dLe.shape[0], 1))
+
+    # Relevant function Call
+    # pdb.set_trace()
+    U, dU, d2U, strain_p, alphas = GENUFUNC_EP(xi, X, d, props, sla=sla, d3=0, smeasure=smeasure,
+                                               PlFrm=PlFrm, strain_p=strain_p, alphas=alphas)
+
+    Fins1 = kron(2.0*U, dLe)/4
+    Fins2 = dU*Le/2
+    Finte = dot((Fins1 + Fins2), wi)
+
+    Jins1 = kron(2.0*U, d2Le)/4.0
+    Jins2 = kron(dU, dLe.T)
+    Jins3 = d2U*Le/2.0
+    Jins13i = dot(Jins1+Jins3, kron(wi, np.eye(6)).T)
+    Jins2i = dot(Jins2, kron(wi, np.eye(6)).T)
+    Jins2i = 0.5*(Jins2i+Jins2i.T)
+    Jinte = Jins13i + Jins2i  # + Jins4
+
+    if d3 == 1:  # Calculate third derivatives
+        raise Exception('Not Implemented')
+    return Finte, Jinte, strain_p, alphas
+
+
+def STATICRESFN_PLAN(Xnds, u, fshape, btrans, No, props, sla=1, spret=1, NDFls=FLWLDS(),
+                     IhBcs=IHBCS(), d3=0, smeasure=1, PlFrm=PLASTICITYFORM(),
+                     strain_p=None, alphas=None):
+    """STATICRESFN_PLAN   : Returns the static residue and Jacobian for the system under static conditions
+    USAGE   :
+        R, dRdX, dRdf = STATICRESFN_PLAN(Xnds, u, fshape, btrans, No, props, sla=1, spret=1,
+                                         NDFls=FLWLDS(), IhBcs=IHBCS(), d3=0, smeasure=-100,
+                                         PlFrm=PLASTICITYFORM(), strain_p=None, alphas=None)
+    INPUTS  :
+    Xnds, u, fshape, btrans, No, props, sla=1, spret=1, NDFls=FLWLDS(), IhBcs=IHBCS(), d3=0, smeasure=-100
+    OUTPUTS :
+    R, dRdX, dRdf, d2RdXdf
+    """
+    Nn = np.int(btrans.shape[0]/3)  # Total number of nodes
+    Ne = Nn-1
+    Nd = Nn*3
+    uph = btrans.dot(u[0:-1])
+
+    # strain_p
+    if strain_p is None:
+        strain_p = np.zeros((2, 2, Ne*No, props.Npy))
+    if alphas is None:
+        alphas = np.zeros((Ne*No, props.Npy))
+
+    # pdb.set_trace()
+    # Stitching
+    R = np.zeros(Nd)
+    dRdX = ss.lil_matrix((Nd, Nd), dtype=float)
+    Rtmp = np.zeros(6)
+    dRdXtmp = np.zeros((6, 6), dtype=float)
+    for e in range(0, Ne):
+        nstart = e
+        nend = nstart+2
+        istart = nstart*3
+        iend = istart+6
+        # pdb.set_trace()
+        Rtmp, dRdXtmp, strain_p[:, :, e*No:(e+1)*No, :], alphas[e*No:(e+1)*No, :] = \
+            FINT_EP(Xnds[nstart:nend], uph[istart:iend], No, props, sla, 0, smeasure, PlFrm=PlFrm,
+                   strain_p=strain_p[:, :, e*No:(e+1)*No, :], alphas=alphas[e*No:(e+1)*No, :])
+        R[istart:iend] += Rtmp
+        dRdX[istart:iend, istart:iend] += dRdXtmp
+    f = u[-1]  # Forcing amplitude
+
+    # External Forces - Non-follower
+    Fext = fshape*f
+    # External Force - Follower
+    Jext = ss.lil_matrix((Nd, Nd), dtype=float)
+    for k in range(NDFls.Nl):
+        nd = NDFls.nd[k]
+        istart = nd*3
+        iend = istart+3
+        Ftmp, Jtmp = FLWFRC_N(Xnds[nd], uph[istart:iend], NDFls.F[k]*f)
+        Fext[istart:iend] += Ftmp
+        Jext[istart:iend, istart:iend] += Jtmp
+    dFexdf = Fext/f
+    d2Fexdf = Jext/f
+    # Inhomogeneous Boundary Conditions
+    for k in range(IhBcs.Nb):
+        nds = IhBcs.nd[k]
+        df = IhBcs.dof[k]
+        R[(nds-1)*3+df] = uph[(nds-1)*3+df]*IhBcs.cnum[k]
+        Fext[(nds-1)*3+df], dFexdf[(nds-1)*3+df] = IhBcs.val[k](f)
+        Fext[(nds-1)*3+df] *= IhBcs.cnum[k]
+        dFexdf[(nds-1)*3+df] *= IhBcs.cnum[k]
+        Jext[(nds-1)*3+df, :], d2Fexdf[(nds-1)*3+df] = 0.0, 0.0
+        dRdX[(nds-1)*3+df, :] = 0.0
+        dRdX[(nds-1)*3+df, (nds-1)*3+df] = IhBcs.cnum[k]
+
+    R = btrans.T.dot(R-Fext)
+    dRdX = btrans.T.dot(dRdX-Jext).dot(btrans)
+    if spret != 1:
+        dRdX = dRdX.todense()
+    dRdf = -btrans.T.dot(dFexdf)
+    d2RdXdf = -btrans.T.dot(d2Fexdf).dot(btrans)
+    if d3 == 1:
+        raise Exception('Not Implemented')
+    return R, dRdX, dRdf, d2RdXdf, strain_p, alphas

@@ -26,21 +26,29 @@ reload(ns)
 E = 210e9
 nu = 0.33
 G = E/(2.0*(1.0+nu))
-R = 1e-2
 L = 1.0
-A = pi*R**2
-I2 = pi*R**4/4.0
-I4 = pi*R**6/8.0
+R = 1e-2
 props = type('', (), {})()
+
+# # Circular Section
+# A = pi*R**2
+# I2 = pi*R**4/4.0
+# I4 = pi*R**6/8.0
+# props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
+
+# Square Section
+A = (2*R)**2
+I2 = 4*R**3/3
+I4 = 4*R**6/5
+props.bfunc = lambda y: np.ones_like(y)*(2*R)
+
 props.EA = E*A
 props.GA = G*A
 props.EI2 = E*I2
 props.EI4 = E*I4
-
 props.E = E
 props.G = G
 props.Npy = 8  # Section quadrature
-props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
 props.yrange = [-R, R]
 ###############################################################################################
 
@@ -56,7 +64,8 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
+# smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
+smeasures = [-100, 1]
 
 # CHOOSE TEST CASE HERE
 # 1: Cantilever Beam with Transverse Load At Tip
@@ -64,7 +73,7 @@ smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
 # 3: Cantilever Beam with Axial Load At Tip
 # 4: Cantilever Beam with Transverse Follower Load At Tip
 # 5: Cantilever Beam with Axial Follower Load At Tip
-cas = 5
+cas = 1
 
 # CHOOSE FORCING AMPLITUDE HERE
 # High levels Are Suggested for Each Case
@@ -76,7 +85,7 @@ elif cas == 2:
 elif cas == 3:
     famp = 1e7  # Tension
 elif cas == 4:
-    famp = 1e4
+    famp = 7e3
 elif cas == 5:
     famp = 1e7  # Tension
 # The current solver properties have large step sizes since final state is more
@@ -86,7 +95,7 @@ elif cas == 5:
 
 
 # PLOTTING PARAMETERS
-aflag = 0  # Set to 1 to plot analytic (linear) solutions
+aflag = 1  # Set to 1 to plot analytic (linear) solutions
 
 # SOLVER AND CONTINUATION PARAMETERS
 opt = type('', (), {})()
