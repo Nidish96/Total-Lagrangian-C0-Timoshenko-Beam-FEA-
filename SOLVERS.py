@@ -237,7 +237,7 @@ def CONTINUESOLS(func, X0, l0, le, ds, opt, ALfn=ARCLENGTHFN, adapt=1):
                 if sol.nit > 20 and ds > opt.dsmin:
                     ds /= 1.0+adapt
         else:
-            if ds <= opt.dsmin:
+            if ds <= opt.dsmin or adapt == 0:
                 print('Failure - Quitting Continuation.')
                 break
             else:

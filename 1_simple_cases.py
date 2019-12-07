@@ -5,7 +5,8 @@
 # Last Modified on 3 Dec 2019                                                                 #
 #                                                                                             #
 # The current script considers a test cantilever beam with five different loading cases where #
-# the different strain measures are compared.                                                 #
+# the different strain measures are compared. Coarse-stepped continuation is employed for     #
+# convergence.                                                                                #
 ###############################################################################################
 import numpy as np
 from numpy import pi
@@ -27,7 +28,7 @@ E = 210e9
 nu = 0.33
 G = E/(2.0*(1.0+nu))
 L = 1.0
-R = 1e-2
+R = 0.5
 props = type('', (), {})()
 
 # # Circular Section
@@ -38,9 +39,9 @@ props = type('', (), {})()
 
 # Square Section
 A = (2*R)**2
-I2 = 4*R**3/3
+I2 = 4*R**4/3
 I4 = 4*R**6/5
-props.bfunc = lambda y: np.ones_like(y)*(2*R)
+props.bfunc = lambda y: 2*R
 
 props.EA = E*A
 props.GA = G*A
@@ -64,8 +65,7 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-# smeasures = [-100, -1, -0.5, 0, 0.5, 1, 2, 100]
-smeasures = [-100, 1]
+smeasures = [-100, -1, -0.5, 0, 0.5, 1, 1.5, 100]
 
 # CHOOSE TEST CASE HERE
 # 1: Cantilever Beam with Transverse Load At Tip
@@ -73,21 +73,21 @@ smeasures = [-100, 1]
 # 3: Cantilever Beam with Axial Load At Tip
 # 4: Cantilever Beam with Transverse Follower Load At Tip
 # 5: Cantilever Beam with Axial Follower Load At Tip
-cas = 1
+cas = 5
 
 # CHOOSE FORCING AMPLITUDE HERE
 # High levels Are Suggested for Each Case
 # Decimal overflow seems to happen some where along the iterates for a few strains (especially negative exponents and log-strain).
 if cas == 1:
-    famp = 5e3
+    famp = 4e9
 elif cas == 2:
-    famp = 3e3
+    famp = 4e9
 elif cas == 3:
-    famp = 1e7  # Tension
+    famp = 1e10  # Tension
 elif cas == 4:
-    famp = 7e3
+    famp = 5e9
 elif cas == 5:
-    famp = 1e7  # Tension
+    famp = 1e10  # Tension
 # The current solver properties have large step sizes since final state is more
 # important here than path. Therefore this can't be used for comperissive loads
 # since the curve will try to cross over bifurcation points with large step sizes
@@ -106,7 +106,7 @@ opt.absrthr = 1e-10
 opt.dsmin = 1.0
 opt.dsmax = famp
 opt.b = 0.5
-opt.maxsteps = 10000
+opt.maxsteps = 10
 opt.minl = 0.01
 opt.maxl = famp
 ###############################################################################################
@@ -189,7 +189,7 @@ elif cas == 5:
 
     def x_an(x): return [x*0]  # Analytic Solution (EB)
 
-    def u_an(x): return famp*x**2/(2.0*props.EI2), famp*x/props.EI2  # Analytical Solution (EB)
+    def u_an(x): return [famp*x/props.EA]  # Analytical Solution (Linear Bar)
 
 u0 = btrans[rdofs, :].T.dot(u_an(Xnds)[0])/famp
 
@@ -240,3 +240,5 @@ plt.ylabel('%s Deflection (m)' % (yt))
 
 fig.savefig('./FIGS/VALIDATION_F%d_CASE%d.pdf' % (famp, cas), dpi=100)
 ###############################################################################################
+
+print 'Total Error: %e' % (np.sum(np.diff(uphs)**2))

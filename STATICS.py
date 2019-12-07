@@ -496,7 +496,7 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
     FTF[0, 0, :, :] = 1.0+2*(einsum("i,j->ij", e0, ones_like(y)) +
                              einsum("i,j->ij", e1, y) +
                              einsum("i,j->ij", e2, y**2))
-    FTF[0, 1, :, :] = 2*einsum("i,j->ij", g0, ones_like(y))
+    FTF[0, 1, :, :] = einsum("i,j->ij", g0, ones_like(y))
     FTF[1, 0, :, :] = FTF[0, 1, :, :]
     FTF[1, 1, :, :] = 1.0
 
@@ -504,14 +504,14 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
     dFTF[0, 0, :, :, :] = 2*(einsum("ki,j->ijk", de0, ones_like(y)) +
                              einsum("ki,j->ijk", de1, y) +
                              einsum("ki,j->ijk", de2, y**2))
-    dFTF[0, 1, :, :, :] = 2*einsum("ki,j->ijk", dg0, ones_like(y))
+    dFTF[0, 1, :, :, :] = einsum("ki,j->ijk", dg0, ones_like(y))
     dFTF[1, 0, :, :, :] = dFTF[0, 1, :, :, :]
 
     d2FTF = np.zeros((2, 2, Np_xi, Np_y, Nd, Nd))
     d2FTF[0, 0, :, :, :, :] = 2*(einsum("kil,j->ijkl", d2e0, ones_like(y)) +
                                  einsum("kil,j->ijkl", d2e1, y) +
                                  einsum("kil,j->ijkl", d2e2, y**2))
-    d2FTF[0, 1, :, :, :, :] = 2*einsum("kil,j->ijkl", d2g0, ones_like(y))
+    d2FTF[0, 1, :, :, :, :] = einsum("kil,j->ijkl", d2g0, ones_like(y))
     d2FTF[1, 0, :, :, :, :] = d2FTF[0, 1, :, :, :, :]
 
     if d3 == 1:
@@ -530,7 +530,7 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
         d3FTF[0, 0, :, :, :, :, :] = 2*(einsum("kilm,j->ijklm", d3e0_, ones_like(y)) +
                                         einsum("kilm,j->ijklm", d3e1_, y) +
                                         einsum("kilm,j->ijklm", d3e2_, y**2))
-        d3FTF[0, 1, :, :, :, :, :] = 2*einsum("kilm,j->ijklm", d3g0_, ones_like(y))
+        d3FTF[0, 1, :, :, :, :, :] = einsum("kilm,j->ijklm", d3g0_, ones_like(y))
         d3FTF[1, 0, :, :, :, :, :] = d3FTF[0, 1, :, :, :, :, :]
 
     # Strain Measure Estimation ##################################################################
@@ -704,11 +704,17 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
                         tmp2 = (einsum("m,ml,mk->mkl", (smeasure-1)*lam2**(smeasure-2), dlam2, dlam2) +
                                 einsum("m,mkl->mkl", lam2**(smeasure-1), d2lam2))/2
                         if d3 == 1:
-                            tmp3 = (einsum("m,mn,ml,mk->mkln", (smeasure-1)*(smeasure-2)*lam2**(smeasure-3), dlam2, dlam2, dlam2) +
-                                    einsum("m,mln,mk->mkln", (smeasure-1)*lam2**(smeasure-2), d2lam2, dlam2) +
-                                    einsum("m,ml,mkn->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
-                                    einsum("m,mn,mkl->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
-                                    einsum("m,mkln->mkln", lam2**(smeasure-1), d3lam2))/2
+                            if smeasure >= 3:
+                                tmp3 = (einsum("m,mn,ml,mk->mkln", (smeasure-1)*(smeasure-2)*lam2**(smeasure-3), dlam2, dlam2, dlam2) +
+                                        einsum("m,mln,mk->mkln", (smeasure-1)*lam2**(smeasure-2), d2lam2, dlam2) +
+                                        einsum("m,ml,mkn->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
+                                        einsum("m,mn,mkl->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
+                                        einsum("m,mkln->mkln", lam2**(smeasure-1), d3lam2))/2
+                            else:
+                                tmp3 = (einsum("m,mln,mk->mkln", (smeasure-1)*lam2**(smeasure-2), d2lam2, dlam2) +
+                                        einsum("m,ml,mkn->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
+                                        einsum("m,mn,mkl->mkln", (smeasure-1)*lam2**(smeasure-2), dlam2, d2lam2) +
+                                        einsum("m,mkln->mkln", lam2**(smeasure-1), d3lam2))/2
 
                     # Strain and Gradients
                     strain[:, :, i, j] = einsum("im,m,jm->ij", phi, tmp0, phi)
@@ -758,16 +764,7 @@ def STRAIN(xi, y, X, d, props, sla=1, d3=0, smeasure=1):
                     d2strain[:, :, i, j, :, :] = d2FTF[:, :, i, j, :, :]/2
                     if d3 == 1:
                         d3strain[:, :, i, j, :, :, :] = d3FTF[:, :, i, j, :, :, :]/2
-    # Conversion to Engineering Notation
-    # strain[0, 1, :, :] *= 2
-    # strain[1, 0, :, :] *= 2
-    # dstrain[0, 1, :, :, :] *= 2
-    # dstrain[1, 0, :, :, :] *= 2
-    # d2strain[0, 1, :, :, :, :] *= 2
-    # d2strain[1, 0, :, :, :, :] *= 2
     if d3 == 1:
-    #     d3strain[0, 1, :, :, :, :, :] *= 2
-    #     d3strain[1, 0, :, :, :, :, :] *= 2
         return strain, dstrain, d2strain, d3strain
     return strain, dstrain, d2strain
 
@@ -986,6 +983,7 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
     yi, wyi = np.polynomial.legendre.leggauss(props.Npy)  # Quadrature for section
     jacy = np.diff(props.yrange)/2
     ys = (1-yi)/2*props.yrange[0] + (1+yi)/2*props.yrange[1]
+    wyi *= jacy*props.bfunc(ys)
 
     Le, dLe, d2Le, d3Le = LE(X, d)
     dLe = np.reshape(dLe, (dLe.shape[0], 1))
@@ -997,14 +995,14 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
 
     # Strain Energy
     U = 0.5*einsum("ij,j->i", props.E*(strain[0, 0, :, :]**2+strain[1, 1, :, :]**2) +
-                   2*props.G*strain[0, 1, :, :]**2, wyi*props.bfunc(ys)*jacy)
+                   4*props.G*strain[0, 1, :, :]**2, wyi)
     # First Derivative
     dU = einsum("ijk,j->ki", props.E*(einsum("ij,ijk->ijk", strain[0, 0, :, :],
                                              dstrain[0, 0, :, :, :]) +
                                       einsum("ij,ijk->ijk", strain[1, 1, :, :],
                                              dstrain[1, 1, :, :, :])) +
-                props.G*einsum("ij,ijk->ijk", strain[0, 1, :, :], dstrain[0, 1, :, :, :]),
-                wyi*props.bfunc(ys)*jacy)
+                4*props.G*einsum("ij,ijk->ijk", strain[0, 1, :, :], dstrain[0, 1, :, :, :]),
+                wyi)
     # Second Derivative
     d2U = einsum("ijkl,j->kil", props.E*(einsum("ijl,ijk->ijkl", dstrain[0, 0, :, :, :],
                                                 dstrain[0, 0, :, :, :]) +
@@ -1014,11 +1012,11 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
                                                 dstrain[1, 1, :, :, :]) +
                                          einsum("ij,ijkl->ijkl", strain[1, 1, :, :],
                                                 d2strain[1, 1, :, :, :, :])) +
-                 props.G*(einsum("ijl,ijk->ijkl", dstrain[0, 1, :, :, :],
+                 4*props.G*(einsum("ijl,ijk->ijkl", dstrain[0, 1, :, :, :],
                                  dstrain[0, 1, :, :, :]) + einsum("ij,ijkl->ijkl",
                                                                   strain[0, 1, :, :],
                                                                   d2strain[0, 1, :, :, :, :])),
-                 wyi*props.bfunc(ys)*jacy)
+                 wyi)
     Nd = len(d)
     Np_xi = len(xi)
     d2U = d2U.reshape(Nd, Nd*Np_xi)  # Compliant with FINT_E
@@ -1031,11 +1029,11 @@ def GENUFUNC_E(xi, X, d, props, sla=1, d3=0, smeasure=1):
                                                einsum("ijl,ijkm->ijklm", dstrain[1, 1, :, :, :], d2strain[1, 1, :, :, :, :]) +
                                                einsum("ijm,ijkl->ijklm", dstrain[1, 1, :, :, :], d2strain[1, 1, :, :, :, :]) +
                                                einsum("ij,ijklm->ijklm", strain[1, 1, :, :], d3strain[1, 1, :, :, :, :, :])) +
-                     props.G*(einsum("ijlm,ijk->ijklm", d2strain[0, 1, :, :, :, :], dstrain[0, 1, :, :, :]) +
+                     4*props.G*(einsum("ijlm,ijk->ijklm", d2strain[0, 1, :, :, :, :], dstrain[0, 1, :, :, :]) +
                               einsum("ijl,ijkm->ijklm", dstrain[0, 1, :, :, :], d2strain[0, 1, :, :, :, :]) +
                               einsum("ijm,ijkl->ijklm", dstrain[0, 1, :, :, :], d2strain[0, 1, :, :, :, :]) +
                               einsum("ij,ijklm->ijklm", strain[0, 1, :, :], d3strain[0, 1, :, :, :, :, :])),
-                     wyi*props.bfunc(ys)*jacy)
+                     wyi)
         d3U_ = np.zeros((Nd, Nd*Np_xi, Nd))
         for nx in range(Np_xi):
             d3U_[:, nx*Nd:(nx+1)*Nd, :] = d3U[:, nx, :, :]
@@ -1139,7 +1137,6 @@ def FINT_E(X, d, No, props, sla=1, d3=0, smeasure=-1):
         U, dU, d2U = UFUNC_E(xi, X, d, props, sla, 0)
     else:  # Generic Strains
         U, dU, d2U = GENUFUNC_E(xi, X, d, props, sla, 0, smeasure)
-        # U, dU, d2U = GENUFUNC_EP(xi, X, d, props, sla=sla, d3=0, smeasure=smeasure)
 
     Fins1 = kron(2.0*U, dLe)/4
     Fins2 = dU*Le/2

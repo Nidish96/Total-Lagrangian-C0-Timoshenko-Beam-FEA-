@@ -26,16 +26,28 @@ reload(nr)
 ###############################################################################################
 # PHYSICAL PROPTERIES                                                                         #
 ###############################################################################################
+rho = 7800.0
 E = 210e9
 nu = 0.33
 G = E/(2.0*(1.0+nu))
-R = 1e-2
-L = 1.0
-A = pi*R**2
-I2 = pi*R**4/4.0
-I4 = pi*R**6/8.0
-rho = 7800.0
+R = 1e-3/2  # 2.5 cm
+L = 30e-2  # 30 cm
 props = type('', (), {})()
+
+# # CIRCULAR SECTION
+# A = pi*R**2
+# I2 = pi*R**4/4.0
+# I4 = pi*R**6/8.0
+# props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
+
+# Square Section
+b = 2.5e-2  # 0.5 mm
+A = 2*R*b
+I2 = 2*R**3*b/3
+I4 = 2*R**5*b/5
+props.bfunc = lambda y: b
+
+
 props.EA = E*A
 props.GA = G*A
 props.EI2 = E*I2
@@ -46,8 +58,12 @@ props.RI2 = rho*I2
 props.E = E
 props.G = G
 props.Npy = 8  # Section quadrature
-props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
 props.yrange = [-R, R]
+
+# CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
+Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
+print('Euler Buckling Predictions: %e, %e, %e' % tuple(Pcrits[:]))
+
 ###############################################################################################
 
 ###############################################################################################
@@ -62,7 +78,10 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = 100
+smeasure = -1
+
+# -100: [ 48.77507664 205.23509523 504.53466168]
+# 1   : [ 48.77505654 205.23513865 504.53492132]
 
 # Forcing Type
 Follower_Forcing = False
@@ -73,8 +92,8 @@ opt.ITMAX = 20
 opt.relethr = 1e-16
 opt.absethr = 1e-16
 opt.absrthr = 1e-10
-opt.dsmin = 1.0
-opt.dsmax = 4000.0
+opt.dsmin = 0.25
+opt.dsmax = 1e10
 opt.b = 0.5
 opt.maxsteps = 10000
 
@@ -82,7 +101,7 @@ opt.maxsteps = 10000
 CALC = True
 
 # PLOT OR NOT
-PLOT = False
+PLOT = True
 ###############################################################################################
 
 ###############################################################################################
@@ -124,16 +143,18 @@ if CALC:
     ######################################################################################
     # CONTINUATION OF PRIMARY BRANCH
     ######################################################################################
-    lstart = 1e2
-    lend = 2e5
-    opt.minl = lstart
-    opt.maxl = lend
+    lstart = 10
+    lend = 550
+    print('%e, %e' % (lstart, lend))
+
+    opt.minl = min(lstart, lend)
+    opt.maxl = max(lstart, lend)
     # pdb.set_trace()
     unf = ns.SPNEWTONSOLVER(lambda u: func(u, lstart)[0:2], u0, opt)
-    
-    ds = 400.0
-    X, lam, mE = ns.CONTINUESOLS(func, unf.x, lstart, lend, ds, opt, adapt=0)
-    
+
+    ds = (lstart+lend)/50
+    X, lam, mE = ns.CONTINUESOLS(func, unf.x, lstart, lend, ds, opt, adapt=0)  #, ALfn=ns.ARCORTHOGFN)
+
     ######################################################################################
     # DYNAMIC STABILITY EXPONENTS
     ######################################################################################
@@ -156,8 +177,8 @@ if CALC:
     us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
     us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
     us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-    print((us1.status, us2a.status, us2b.status))
-    print((us2a.lam, us2b.lam))
+    print('%d, %d, %d' % (us1.status, us2a.status, us2b.status))
+    print('%e, %e, %e' % (us1.lam, us2a.lam, us2b.lam))
     Xb1a, lamb1a, mEb1a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
                                           0.25, opt, ALfn=ns.ARCORTHOGFN)
     Xb1b, lamb1b, mEb1b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
@@ -174,8 +195,8 @@ if CALC:
     us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
     us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
     us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-    print((us1.status, us2a.status, us2b.status))
-    print((us2a.lam, us2b.lam))
+    print('%d, %d, %d' % (us1.status, us2a.status, us2b.status))
+    print('%e, %e, %e' % (us1.lam, us2a.lam, us2b.lam))
     Xb2a, lamb2a, mEb2a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
                                           0.25, opt, ALfn=ns.ARCORTHOGFN)
     Xb2b, lamb2b, mEb2b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
@@ -191,19 +212,13 @@ if CALC:
     us1 = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du1*al1, al1)), ds, lam[ots.cpi-1], opt)
     us2a = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((du2*al2, al2)), ds, lam[ots.cpi-1], opt)
     us2b = ns.CONTSTEP(func, X[ots.cpi-1], np.hstack((-du2*al2, al2)), ds, lam[ots.cpi-1], opt)
-    print((us1.status, us2a.status, us2b.status))
-    print((us2a.lam, us2b.lam))
+    print('%d, %d, %d' % (us1.status, us2a.status, us2b.status))
+    print('%e, %e, %e' % (us1.lam, us2a.lam, us2b.lam))
     Xb3a, lamb3a, mEb3a = ns.CONTINUESOLS(func, us2a.x, us2a.lam, lend,
                                           0.25, opt, ALfn=ns.ARCORTHOGFN)
     Xb3b, lamb3b, mEb3b = ns.CONTINUESOLS(func, us2b.x, us2b.lam, lend,
                                           0.25, opt, ALfn=ns.ARCORTHOGFN)
     ####################################################################################
-    
-    ####################################################################################
-    # CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
-    ####################################################################################
-    Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
-    ###########################################################################################
     
     ###########################################################################################
     # SAVE RESULT
@@ -265,15 +280,17 @@ if smeasure in STRAINMEASURES.keys():
     lt = STRAINMEASURES[smeasure]
 else:
     lt = 'Seth-Hill: %.2f' % (smeasure)
-print('%s; CriticaL Loads:' % (lt))
+print('%s; Critical Loads:' % (lt))
 print(np.array([lamb1a[0], lamb2a[0], lamb3a[0]]))
+print('Euler Buckling Critical Loads:')
+print(Pcrits)
 
 ####################################################################################
 # PLOTS                                                                            #
 ####################################################################################
 if PLOT:
     plt.ion()
-    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=False, clear=True, num=1, squeeze=True)
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=False, clear=True, num=smeasure+101, squeeze=True)
     axes[0].plot(lam, (np.array(X).dot(btrans.T.todense()))[:, -2], 'k.-', label='Main branch')
     axes[0].plot(lamb1a, (np.array(Xb1a))[:, -2], 'b-', label='Branch 1a')
     axes[0].plot(lamb1b, (np.array(Xb1b))[:, -2], 'r-', label='Branch 1b')
