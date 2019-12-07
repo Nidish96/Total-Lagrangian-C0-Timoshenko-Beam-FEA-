@@ -24,49 +24,6 @@ reload(ns)
 reload(nr)
 
 ###############################################################################################
-# PHYSICAL PROPTERIES                                                                         #
-###############################################################################################
-rho = 7800.0
-E = 210e9
-nu = 0.33
-G = E/(2.0*(1.0+nu))
-R = 1e-3/2  # 2.5 cm
-L = 30e-2  # 30 cm
-props = type('', (), {})()
-
-# # CIRCULAR SECTION
-# A = pi*R**2
-# I2 = pi*R**4/4.0
-# I4 = pi*R**6/8.0
-# props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
-
-# Square Section
-b = 2.5e-2  # 0.5 mm
-A = 2*R*b
-I2 = 2*R**3*b/3
-I4 = 2*R**5*b/5
-props.bfunc = lambda y: b
-
-
-props.EA = E*A
-props.GA = G*A
-props.EI2 = E*I2
-props.EI4 = E*I4
-props.RA = rho*A
-props.RI2 = rho*I2
-
-props.E = E
-props.G = G
-props.Npy = 8  # Section quadrature
-props.yrange = [-R, R]
-
-# CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
-Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
-print('Euler Buckling Predictions: %e, %e, %e' % tuple(Pcrits[:]))
-
-###############################################################################################
-
-###############################################################################################
 # USER INPUT SECTION                                                                          #
 ###############################################################################################
 # CHOOSE STRAIN MEASURE TO DEPLOY
@@ -78,11 +35,20 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = -0.5
+smeasure = 0.5
 
+# CASE 1
 # -100: [ 48.77507664 205.23509523 504.53466168]
 # -1  : [ 48.78051495 205.33141713 505.11776897]
+# -0.5: [ 48.77915528 205.30732921 504.97142618]
+# 0   : [ 48.77779567 205.28324626 504.82576336]
+# 0.5 : [ 48.77643612 205.25916826 504.68017523]
 # 1   : [ 48.77505654 205.23513865 504.53492132]
+
+# CASE 2
+
+# Physical Parameters Case
+cas = 2
 
 # Forcing Type
 Follower_Forcing = False
@@ -103,6 +69,60 @@ CALC = True
 
 # PLOT OR NOT
 PLOT = True
+###############################################################################################
+
+###############################################################################################
+# PHYSICAL PROPTERIES                                                                         #
+###############################################################################################
+rho = 7800.0
+E = 210e9
+nu = 0.33
+G = E/(2.0*(1.0+nu))
+
+L = 30e-2  # 30 cm
+props = type('', (), {})()
+
+# # CIRCULAR SECTION
+# R = 1e-3/2  # 2.5 cm
+# A = pi*R**2
+# I2 = pi*R**4/4.0
+# I4 = pi*R**6/8.0
+# props.bfunc = lambda y: 2*np.sqrt(R**2-y**2)
+
+# Rectangular Section
+if cas == 1: 
+    R = 1e-3/2  # 1 mm thickness
+    b = 2.5e-2  # 2.5 cm width
+
+    lstart = 10
+    lend = 550
+elif cas == 2:
+    R = 8e-3/2
+    b = 2.5e-2
+
+    lstart = 10
+    lend = 2.5e5
+A = 2*R*b
+I2 = 2*R**3*b/3
+I4 = 2*R**5*b/5
+props.bfunc = lambda y: b
+
+props.EA = E*A
+props.GA = G*A
+props.EI2 = E*I2
+props.EI4 = E*I4
+props.RA = rho*A
+props.RI2 = rho*I2
+
+props.E = E
+props.G = G
+props.Npy = 8  # Section quadrature
+props.yrange = [-R, R]
+
+# CRITICAL LOADS (ANALYTICAL: EULER BUCKLING)
+Pcrits = pi**2*E*I2/L**2*(np.arange(1, 4))**2
+print('Euler Buckling Predictions: %e, %e, %e' % tuple(Pcrits[:]))
+
 ###############################################################################################
 
 ###############################################################################################
@@ -144,8 +164,6 @@ if CALC:
     ######################################################################################
     # CONTINUATION OF PRIMARY BRANCH
     ######################################################################################
-    lstart = 10
-    lend = 550
     print('%e, %e' % (lstart, lend))
 
     opt.minl = min(lstart, lend)
@@ -224,7 +242,7 @@ if CALC:
     ###########################################################################################
     # SAVE RESULT
     ###########################################################################################
-    fil = open('./DATS/SSBUCK_%.1f.pkl' % (smeasure), 'w')
+    fil = open('./DATS/SSBUCK_%.1f_C%d.pkl' % (smeasure, cas), 'w')
     pickle.dump({'smeasure': smeasure, 'Follower_Forcing': Follower_Forcing,
                  'Xnds': Xnds, 'lstart': lstart, 'lend': lend,
                  'X': X, 'lam': lam, 'mE': mE, 'c1': c1, 'c2': c2, 'c3': c3,
