@@ -78,9 +78,10 @@ STRAINMEASURES = {  # Dictionary of Strain Measures (we identify the following e
     0.5: 'Cauchy Strain',
     1: 'Green-Lagrange Strain',
     100: 'Kuhn Strain'}
-smeasure = -1
+smeasure = -0.5
 
 # -100: [ 48.77507664 205.23509523 504.53466168]
+# -1  : [ 48.78051495 205.33141713 505.11776897]
 # 1   : [ 48.77505654 205.23513865 504.53492132]
 
 # Forcing Type
